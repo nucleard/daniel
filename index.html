@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Daniel Humphries</title>
+<meta name="description" content="Daniel Humphries, Amsterdam. Twenty years in coffee, AI systems built on real farm and roastery data, and a studio of shaders, generators and games.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&display=swap">
+<style>
+  :root {
+    --paper: #dfd7b9;
+    --paper-hi: #ede7cc;
+    --paper-lo: #cdc49d;
+    --ink: #17150e;
+    --ink-soft: #46412c;
+    --ink-faint: #7b7454;
+    --display: "Big Shoulders Display", "Arial Narrow", Impact, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: var(--mono); font-size: 15px; line-height: 1.6;
+    overflow: hidden; -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: var(--ink); color: var(--paper); }
+  a { color: inherit; }
+
+  /* The page is one sheet of paper with a round hole where the wheel sits; the wheel is its own sheet. */
+  #paper { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1;
+    mix-blend-mode: multiply; opacity: .55; }
+  #vignette { position: fixed; inset: 0; pointer-events: none; z-index: 4;
+    background: radial-gradient(120% 100% at 30% 40%, transparent 60%, rgba(60, 50, 20, .12) 100%); }
+
+  #dial { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: grab; z-index: 2; }
+  #dial.dragging { cursor: grabbing; }
+  #dial text { user-select: none; -webkit-user-select: none; }
+  #dial .sheet { fill: var(--paper); }
+  #dial .sheet-grain { mix-blend-mode: multiply; opacity: .55; }
+  #dial .sheet-edge { fill: none; stroke: #2a2416; stroke-opacity: .16; stroke-width: 5; }
+
+  /* Engraving: every stroke is drawn twice, a light edge offset down-right under the ink. */
+  .cut-lo { stroke: var(--paper-hi); fill: none; }
+  .cut    { stroke: var(--ink); fill: none; }
+  .rim    { stroke-width: 1.6; }
+  .rim-in { stroke-width: .8; }
+  .tick   { stroke-width: .9; }
+  .tick-major { stroke-width: 1.4; }
+  .zone-label { font: 500 11px var(--mono); letter-spacing: .32em; text-transform: uppercase; fill: var(--ink-faint); }
+  .stop { cursor: pointer; }
+  .stop .ring { fill: var(--paper); stroke: var(--ink); stroke-width: 1.1; }
+  .stop .ring-lo { fill: none; stroke: var(--paper-hi); stroke-width: 1.1; }
+  .stop .stamp { fill: var(--ink); }
+  .stop .stamp-in { fill: none; stroke: var(--paper); stroke-width: 1; }
+  .stop .lbl { font: 400 13px var(--mono); fill: var(--ink-soft); letter-spacing: .04em; }
+  .stop.anchor .lbl { font: 800 24px var(--display); fill: var(--ink); letter-spacing: .06em; text-transform: uppercase; }
+  .stop:hover .ring, .stop.near .ring { stroke-width: 2; }
+  .stop:hover .lbl, .stop.near .lbl { fill: var(--ink); }
+  .stop.soon .lbl { fill: var(--ink-faint); }
+
+  /* Left column */
+  #intro { position: fixed; z-index: 3; left: clamp(20px, 6vw, 96px); top: clamp(24px, 9vh, 110px);
+    max-width: min(46ch, 44vw); pointer-events: none; }
+  #intro > * { pointer-events: auto; }
+  .eyebrow { font: 400 14px var(--mono); color: var(--ink-soft); margin: 0 0 1.2em; }
+  h1 { font-family: var(--display); font-weight: 800; text-transform: uppercase; line-height: .9;
+    font-size: clamp(54px, 8.2vw, 124px); margin: 0 0 .32em; letter-spacing: .02em; text-wrap: balance;
+    color: transparent; -webkit-text-stroke: 2.2px var(--ink); paint-order: stroke; }
+  .line1 { font: 500 15px var(--mono); color: var(--ink); margin: 0; }
+  nav { display: flex; gap: 1.6em; flex-wrap: wrap; font: 400 15px var(--mono); margin-top: 1.6em; }
+  nav a { text-decoration: none; border-bottom: 1.5px solid var(--ink); padding-bottom: 1px; }
+  nav a:hover, nav a:focus-visible { background: var(--ink); color: var(--paper); outline: none; }
+  #contact { position: fixed; z-index: 3; right: clamp(16px, 4vw, 60px); top: calc(20px + env(safe-area-inset-top, 0px));
+    font: 400 13px var(--mono); color: var(--ink-soft); max-width: 36ch; text-align: right; margin: 0; }
+  #contact a { text-decoration: none; border-bottom: 1px solid var(--ink-faint); }
+  #contact a:hover { color: var(--ink); border-color: var(--ink); }
+
+  /* Readout for the stop nearest the pointer of the dial */
+  #readout { position: fixed; z-index: 3; left: clamp(20px, 6vw, 96px); bottom: calc(clamp(20px, 5vh, 48px) + env(safe-area-inset-bottom, 0px));
+    max-width: 40ch; pointer-events: none; transition: opacity .25s; }
+  #readout .zone { font: 400 13px var(--mono); color: var(--ink-faint); }
+  #readout .name { font-family: var(--display); font-weight: 800; font-size: 34px; line-height: 1; text-transform: uppercase; margin: .15em 0 .2em; }
+  #readout .line { font-size: 14px; color: var(--ink-soft); margin: 0; }
+  #readout .go { font: 400 13px var(--mono); margin-top: .7em; text-decoration: underline; text-underline-offset: 3px; }
+  #hint { position: fixed; z-index: 3; right: clamp(16px, 4vw, 60px); bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    font: 400 12px var(--mono); color: var(--ink-faint); }
+
+  @media (max-width: 760px) {
+    body { overflow: auto; }
+    #intro { position: static; max-width: none; padding: calc(24px + env(safe-area-inset-top, 0px)) 20px 0; }
+    h1 { font-size: clamp(56px, 17vw, 96px); }
+    #dial { position: relative; height: 62vh; min-height: 380px; margin-top: 8px; }
+    #readout { position: static; padding: 0 20px; max-width: none; }
+    #contact { position: static; text-align: left; max-width: none; padding: 24px 20px calc(28px + env(safe-area-inset-bottom, 0px)); }
+    #hint { display: none; }
+    #vignette { display: none; }
+    #paper { position: absolute; height: auto; min-height: 100%; }
+  }
+  @media (prefers-reduced-motion: reduce) { #readout { transition: none; } }
+</style>
+</head>
+<body>
+
+<img id="paper" alt="" aria-hidden="true">
+<div id="vignette" aria-hidden="true"></div>
+
+<header id="intro">
+  <p class="eyebrow">Amsterdam</p>
+  <h1>Daniel<br>Humphries</h1>
+  <p class="line1">Coffee · AI systems · Design</p>
+  <nav aria-label="Sections">
+    <a href="coffee.html">Coffee</a>
+    <a href="coffee-ai.html">Coffee × AI</a>
+    <a href="studio.html">Studio</a>
+  </nav>
+</header>
+
+<svg id="dial" role="group" aria-label="The dial: every project on one axis from practical coffee work at the top to pure design studies at the bottom. Drag or scroll to turn, click a stop to open it."></svg>
+
+<div id="readout" aria-live="polite">
+  <div class="zone"></div>
+  <div class="name"></div>
+  <p class="line"></p>
+  <div class="go"></div>
+</div>
+<div id="hint">Drag or scroll to turn</div>
+
+<p id="contact">If you'd like something like this built for your farm or roastery, write to <a href="mailto:dmhnuclear@gmail.com">dmhnuclear@gmail.com</a>.</p>
+
+<script>
+// ---------------------------------------------------------------------------
+// The whole site is this list. One entry per stop. `t` is the position on the
+// axis: 0 = pure coffee (top of the dial), 1 = pure design (bottom).
+// Anchors are the three doors. A stop without an href is shown but not linked.
+// A newline in a name breaks the label on the wheel.
+// ---------------------------------------------------------------------------
+const ZONES = [
+  { key: 'coffee', label: 'Coffee',      from: 0.00, to: 0.26 },
+  { key: 'ai',     label: 'Coffee × AI', from: 0.26, to: 0.62 },
+  { key: 'studio', label: 'Studio',      from: 0.62, to: 1.00 },
+];
+const STOPS = [
+  { t: 0.10, anchor: true, zone: 'coffee', name: 'Twenty years\nin coffee', line: 'Barista, consultant, importer, roaster. The whole story on one page.', href: 'coffee.html' },
+  { t: 0.20, zone: 'coffee', name: 'Roast profiles', line: 'Notes from the drum. Coming later this year.' },
+
+  { t: 0.33, zone: 'ai', name: 'Farm climate reports', line: 'Forty years of satellite weather for any farm on earth, written up for the people who run it.', href: 'coffee-ai.html#climate' },
+  { t: 0.44, anchor: true, zone: 'ai', name: 'Coffee × AI', line: 'Three working systems built on real farm and roastery data.', href: 'coffee-ai.html' },
+  { t: 0.52, zone: 'ai', name: 'The cupping vault', line: 'Photograph the sample, talk through the cup, never lose a note again.', href: 'coffee-ai.html#cupping' },
+  { t: 0.59, zone: 'ai', name: 'Roastery query system', line: 'One question box over everything a roastery knows about its coffee.', href: 'coffee-ai.html#query' },
+
+  { t: 0.66, zone: 'studio', name: 'Coffee Hallucination', line: 'Six words about a coffee, evolved into something else.' },
+  { t: 0.74, zone: 'studio', name: 'Carbon foil', line: 'Dark objects that tilt and catch the light. WebGL, one file.', href: 'studio.html#carbon-foil' },
+  { t: 0.82, anchor: true, zone: 'studio', name: 'Studio', line: 'Shaders, generators, games. Made after hours to learn how they work.', href: 'studio.html' },
+  { t: 0.90, zone: 'studio', name: 'Planet Forge', line: 'Procedural worlds in the browser.' },
+  { t: 0.97, zone: 'studio', name: 'Dark Pixel', line: 'A small game, drawn in ink and cel shade.' },
+];
+const REST_ON = 'Coffee × AI';   // the stop sitting in the sweet spot on load
+
+// ---------------------------------------------------------------------------
+// Paper. A sheet is grain plus mottling plus flecks: specks and short curved
+// strands of fibre at random angles, seeded so a sheet never changes between
+// frames. The page gets one sheet, the wheel gets another that turns with it.
+// ---------------------------------------------------------------------------
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function paperSheet(w, h, seed) {
+  const r = mulberry32(seed);
+  const f = n => n.toFixed(1);
+  let flecks = '';
+  const dots = Math.round(w * h / 3000), strands = Math.round(w * h / 20000), lights = Math.round(w * h / 9000);
+  for (let i = 0; i < dots; i++) {
+    flecks += `<circle cx="${f(r() * w)}" cy="${f(r() * h)}" r="${(0.35 + r() * 0.95).toFixed(2)}" fill="#3a3322" opacity="${(0.18 + r() * 0.45).toFixed(2)}"/>`;
+  }
+  for (let i = 0; i < lights; i++) {
+    flecks += `<circle cx="${f(r() * w)}" cy="${f(r() * h)}" r="${(0.6 + r() * 1.4).toFixed(2)}" fill="#fff" opacity="${(0.10 + r() * 0.2).toFixed(2)}"/>`;
+  }
+  for (let i = 0; i < strands; i++) {
+    const x = r() * w, y = r() * h, len = 5 + r() * 24, ang = r() * Math.PI * 2, bend = (r() - 0.5) * len * 0.6;
+    const dx = Math.cos(ang), dy = Math.sin(ang);
+    const mx = x + dx * len / 2 - dy * bend, my = y + dy * len / 2 + dx * bend;
+    flecks += `<path d="M${f(x)} ${f(y)} Q${f(mx)} ${f(my)} ${f(x + dx * len)} ${f(y + dy * len)}" fill="none" stroke="#4d432a" stroke-width="${(0.5 + r() * 0.5).toFixed(2)}" opacity="${(0.14 + r() * 0.26).toFixed(2)}"/>`;
+  }
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><defs>` +
+    `<filter id="g" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".75" numOctaves="4" seed="${seed}" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncR type="linear" slope="1.9" intercept="-.35"/><feFuncG type="linear" slope="1.9" intercept="-.35"/><feFuncB type="linear" slope="1.9" intercept="-.35"/><feFuncA type="table" tableValues="0 .7"/></feComponentTransfer></filter>` +
+    `<filter id="m" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".004" numOctaves="2" seed="${seed + 1}"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="table" tableValues="0 .22"/></feComponentTransfer></filter>` +
+    `</defs><rect width="100%" height="100%" filter="url(#g)"/><rect width="100%" height="100%" filter="url(#m)"/>${flecks}</svg>`;
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+}
+
+// ---------------------------------------------------------------------------
+const svg = document.getElementById('dial');
+const paper = document.getElementById('paper');
+const NS = 'http://www.w3.org/2000/svg';
+const el = (n, a = {}, parent) => { const e = document.createElementNS(NS, n); for (const k in a) e.setAttribute(k, a[k]); if (parent) parent.appendChild(e); return e; };
+const rad = d => d * Math.PI / 180;
+const readout = { zone: document.querySelector('#readout .zone'), name: document.querySelector('#readout .name'), line: document.querySelector('#readout .line'), go: document.querySelector('#readout .go') };
+const zoneOf = key => ZONES.find(z => z.key === key);
+const motion = matchMedia('(prefers-reduced-motion: reduce)');
+
+let L = {};        // layout: cx, cy, R, sweet (deg), span (deg), dir (+1/-1)
+let rot = 0;       // current rotation offset, degrees
+let target = 0;
+let stopEls = [];
+
+function layout() {
+  const W = svg.clientWidth, H = svg.clientHeight;
+  if (W < 760) {
+    const R = Math.max(W * 0.95, 320);
+    L = { W, H, R, cx: W / 2, cy: H + R * 0.42, sweet: 270, span: 150, dir: +1, phone: true };
+  } else {
+    const R = Math.max(H * 0.85, W * 0.40);
+    L = { W, H, R, cx: W + R * 0.15, cy: H * 0.5, sweet: 180, span: 64, dir: -1, phone: false };
+  }
+}
+// Angle (deg) on the rim for axis position t, before rotation.
+const angleFor = t => L.sweet + L.dir * (t - 0.5) * L.span;
+const pt = (deg, r) => [L.cx + Math.cos(rad(deg)) * r, L.cy + Math.sin(rad(deg)) * r];
+
+function pageSheet() {
+  // The page's sheet, with a hole where the wheel is so the two textures never overlap.
+  const W = innerWidth, H = L.phone ? Math.max(document.documentElement.scrollHeight, innerHeight) : innerHeight;
+  paper.src = paperSheet(W, H, 41);
+  const box = svg.getBoundingClientRect();
+  const cx = box.left + L.cx, cy = (L.phone ? box.top + scrollY : box.top) + L.cy;
+  const m = `radial-gradient(circle at ${cx}px ${cy}px, transparent ${L.R - 1}px, #000 ${L.R + 1}px)`;
+  paper.style.maskImage = m; paper.style.webkitMaskImage = m;
+}
+
+function build() {
+  layout();
+  svg.innerHTML = '';
+  svg.setAttribute('viewBox', `0 0 ${L.W} ${L.H}`);
+  const { cx, cy, R } = L;
+  const defs = el('defs', {}, svg);
+  const clip = el('clipPath', { id: 'discClip' }, defs);
+  el('circle', { cx, cy, r: R }, clip);
+  const soft = el('filter', { id: 'soft', x: '-5%', y: '-5%', width: '110%', height: '110%' }, defs);
+  el('feGaussianBlur', { stdDeviation: 2.5 }, soft);
+
+  // A soft cut edge around the wheel's sheet, stationary because the wheel doesn't move, only turns.
+  el('circle', { class: 'sheet-edge', cx, cy, r: R + 1.5, filter: 'url(#soft)' }, svg);
+
+  const g = el('g', { id: 'turn' }, svg);
+  // The wheel's own sheet of paper: colour, then its grain and flecks, which turn with everything else.
+  el('circle', { class: 'sheet', cx, cy, r: R }, g);
+  const D = Math.ceil(R * 2);
+  el('image', { class: 'sheet-grain', href: paperSheet(D, D, 23), x: cx - R, y: cy - R, width: D, height: D, 'clip-path': 'url(#discClip)', preserveAspectRatio: 'none' }, g);
+
+  // Rim rings, engraved: light edge first, ink on top.
+  for (const [cls, r] of [['rim', R], ['rim-in', R - 34], ['rim-in', R - 40]]) {
+    el('circle', { class: `cut-lo ${cls}`, cx: cx + .8, cy: cy + .8, r }, g);
+    el('circle', { class: `cut ${cls}`, cx, cy, r }, g);
+  }
+  // Tick scale along the whole circle, denser near the visible arc doesn't matter: it's a real dial.
+  for (let i = 0; i < 360; i += 2) {
+    const major = i % 10 === 0;
+    const [x1, y1] = pt(i, R - (major ? 14 : 8)), [x2, y2] = pt(i, R - 2);
+    el('line', { class: `cut-lo ${major ? 'tick-major' : 'tick'}`, x1: x1 + .7, y1: y1 + .7, x2: x2 + .7, y2: y2 + .7 }, g);
+    el('line', { class: `cut ${major ? 'tick-major' : 'tick'}`, x1, y1, x2, y2 }, g);
+  }
+  // Zone labels engraved along the inner ring, between the two inner circles.
+  ZONES.forEach((z, i) => {
+    const a0 = angleFor(z.from), a1 = angleFor(z.to);
+    const rr = R - 33;
+    const start = L.dir < 0 ? a1 : a0, end = L.dir < 0 ? a0 : a1; // path runs in increasing angle
+    const [sx, sy] = pt(start, rr), [ex, ey] = pt(end, rr);
+    const big = Math.abs(end - start) > 180 ? 1 : 0;
+    const p = el('path', { id: `zp${i}`, d: `M ${sx} ${sy} A ${rr} ${rr} 0 ${big} 1 ${ex} ${ey}`, fill: 'none' }, g);
+    const t = el('text', { class: 'zone-label' }, g);
+    const tp = el('textPath', { href: `#zp${i}`, startOffset: '50%', 'text-anchor': 'middle' }, t);
+    tp.textContent = z.label;
+  });
+
+  // Stops.
+  stopEls = STOPS.map(s => {
+    const a = angleFor(s.t);
+    const rStop = R - 62;
+    const [x, y] = pt(a, rStop);
+    const sg = el('g', { class: `stop ${s.anchor ? 'anchor' : ''} ${s.href ? '' : 'soon'}`, transform: `translate(${x} ${y})`, tabindex: '0', role: 'link', 'aria-label': `${s.name.replace('\n', ' ')}. ${s.line}` }, g);
+    if (s.anchor) {
+      el('circle', { class: 'stamp', r: 15 }, sg);
+      el('circle', { class: 'stamp-in', r: 9.5 }, sg);
+    } else {
+      el('circle', { class: 'ring-lo', cx: .7, cy: .7, r: 6.5 }, sg);
+      el('circle', { class: 'ring', r: 6.5 }, sg);
+    }
+    const lbl = el('text', { class: 'lbl' }, sg);
+    const spans = s.name.split('\n').map((ln, i) => { const ts = el('tspan', { dy: i ? '1.05em' : 0 }, lbl); ts.textContent = ln; return ts; });
+    sg.addEventListener('click', () => open(s));
+    sg.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(s); } });
+    sg.addEventListener('pointerenter', () => show(s));
+    sg.addEventListener('pointerleave', () => show(nearest()));
+    return { s, sg, lbl, spans, a };
+  });
+  pageSheet();
+  render();
+}
+
+function render() {
+  const turn = document.getElementById('turn');
+  turn.setAttribute('transform', `rotate(${rot} ${L.cx} ${L.cy})`);
+  // Labels lie along the radius, pointing at the centre, and turn with the dial.
+  // If that would put the text upside down, flip it and let it end at the stop instead.
+  // Labels lie along the radius, pointing at the centre, and turn with the dial.
+  // Desktop: a label that would read upside down flips and ends at the stop instead.
+  // Phone: nothing flips, every label reads the same way.
+  for (const { sg, lbl, spans, a, s } of stopEls) {
+    const world = ((a + rot) % 360 + 360) % 360;
+    let ang = world + 180;
+    const flip = !L.phone && Math.cos(rad(ang)) < 0;
+    if (flip) ang += 180;
+    const off = s.anchor ? 26 : 15;
+    const x = flip ? -off : off;
+    lbl.setAttribute('transform', `rotate(${ang - rot})`);
+    lbl.setAttribute('text-anchor', flip ? 'end' : 'start');
+    lbl.setAttribute('dominant-baseline', 'middle');
+    lbl.setAttribute('x', x); lbl.setAttribute('y', spans.length > 1 ? -0.5 * (spans.length - 1) * 1.05 * (s.anchor ? 24 : 13) : 0);
+    spans.forEach(ts => ts.setAttribute('x', x));
+    sg.classList.toggle('near', nearest() === s);
+  }
+}
+function nearest() {
+  let best = null, bd = 1e9;
+  for (const { s, a } of stopEls) {
+    let d = ((a + rot - L.sweet) % 360 + 540) % 360 - 180;
+    d = Math.abs(d);
+    if (d < bd) { bd = d; best = s; }
+  }
+  return best;
+}
+function show(s) {
+  if (!s) return;
+  readout.zone.textContent = zoneOf(s.zone).label + (s.anchor ? ' · door' : '');
+  readout.name.textContent = s.name.replace('\n', ' ');
+  readout.line.textContent = s.line;
+  readout.go.textContent = s.href ? 'Click to open' : 'Not yet written';
+}
+function open(s) { if (s.href) location.href = s.href; }
+
+// Turning: drag, wheel, keys. Snap to the nearest stop when the hand lets go.
+let dragging = false, lastAng = 0, vel = 0, lastT = 0;
+const angleAt = (x, y) => { const b = svg.getBoundingClientRect(); return Math.atan2(y - b.top - L.cy, x - b.left - L.cx) * 180 / Math.PI; };
+svg.addEventListener('pointerdown', e => {
+  if (e.target.closest('.stop')) return;
+  dragging = true; svg.classList.add('dragging'); svg.setPointerCapture(e.pointerId);
+  lastAng = angleAt(e.clientX, e.clientY); lastT = performance.now(); vel = 0;
+});
+svg.addEventListener('pointermove', e => {
+  if (!dragging) return;
+  const a = angleAt(e.clientX, e.clientY);
+  let d = a - lastAng; if (d > 180) d -= 360; if (d < -180) d += 360;
+  rot += d; target = rot; lastAng = a;
+  const now = performance.now(); vel = d / Math.max(1, now - lastT) * 16; lastT = now;
+  render(); show(nearest());
+});
+const release = () => { if (!dragging) return; dragging = false; svg.classList.remove('dragging'); target = rot + vel * 6; snap(); };
+svg.addEventListener('pointerup', release); svg.addEventListener('pointercancel', release);
+svg.addEventListener('wheel', e => { e.preventDefault(); target += (e.deltaY > 0 ? 1 : -1) * 4 * L.dir; snapSoon(); }, { passive: false });
+addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowRight') { step(+1); }
+  if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') { step(-1); }
+});
+function step(dirn) {
+  const cur = nearest(); const i = STOPS.indexOf(cur);
+  const nxt = STOPS[Math.max(0, Math.min(STOPS.length - 1, i + dirn))];
+  target = L.sweet - angleFor(nxt.t);
+}
+let snapTimer = 0;
+function snapSoon() { clearTimeout(snapTimer); snapTimer = setTimeout(snap, 260); }
+function snap() {
+  // Choose the stop nearest to where the dial will settle, then aim exactly at it.
+  const saved = rot; rot = target; const s = nearest(); rot = saved;
+  let want = L.sweet - angleFor(s.t);
+  // pick the equivalent rotation closest to current
+  while (want - rot > 180) want -= 360; while (want - rot < -180) want += 360;
+  target = want;
+}
+function tick() {
+  if (!dragging) {
+    const k = motion.matches ? 1 : 0.12;
+    if (Math.abs(target - rot) > 0.01) { rot += (target - rot) * k; render(); show(nearest()); }
+  }
+  requestAnimationFrame(tick);
+}
+
+build();
+{ const s = STOPS.find(x => x.name === REST_ON) || STOPS[0]; rot = target = L.sweet - angleFor(s.t); render(); show(s); }
+let resizeTimer = 0;
+addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { const s = nearest(); build(); rot = target = L.sweet - angleFor(s.t); render(); show(s); }, 120); });
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>

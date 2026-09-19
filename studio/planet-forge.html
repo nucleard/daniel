@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planet Forge — Stage 1: Tectonics &amp; Elevation</title>
+<style>
+  :root{
+    --bg:#0e1116; --panel:#151a22; --panel2:#1b2130; --line:#2a3242;
+    --text:#d8d3c8; --dim:#8a8f9a; --accent:#c47a3d; --accent2:#7fb2d9;
+    --good:#7aa05a; --warn:#c4573d;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:ui-monospace,"Cascadia Mono","SF Mono",Menlo,Consolas,monospace;
+    font-size:13px; display:flex; flex-direction:column; overflow:hidden;
+  }
+  header{
+    display:flex; align-items:center; gap:16px; padding:10px 16px;
+    border-bottom:1px solid var(--line); background:var(--panel);
+  }
+  header h1{font-size:14px; font-weight:600; letter-spacing:0.08em; color:var(--accent);}
+  header h1 span{color:var(--dim); font-weight:400;}
+  #genBtn{
+    background:var(--accent); color:#14100b; border:none; padding:7px 18px;
+    font:inherit; font-weight:600; cursor:pointer; border-radius:3px; letter-spacing:0.05em;
+  }
+  #genBtn:disabled{background:#5a4a37; cursor:wait; color:#8d8478;}
+  #genBtn:focus-visible{outline:2px solid var(--accent2); outline-offset:2px;}
+  #progressWrap{flex:1; max-width:340px; height:8px; background:var(--panel2); border-radius:4px; overflow:hidden; border:1px solid var(--line);}
+  #progressBar{height:100%; width:0%; background:linear-gradient(90deg,var(--accent),#e0a06a); transition:width 0.15s;}
+  #phaseLabel{color:var(--dim); min-width:220px; font-size:12px;}
+  main{flex:1; display:flex; min-height:0;}
+  #controls{
+    width:272px; flex-shrink:0; background:var(--panel); border-right:1px solid var(--line);
+    padding:14px; overflow-y:auto; display:flex; flex-direction:column; gap:14px;
+  }
+  .ctl label{display:block; color:var(--dim); font-size:11px; letter-spacing:0.06em; text-transform:uppercase; margin-bottom:5px;}
+  .ctl .val{color:var(--text); float:right; font-size:11px;}
+  input[type=range]{width:100%; accent-color:var(--accent);}
+  input[type=text], select{
+    width:100%; background:var(--panel2); border:1px solid var(--line); color:var(--text);
+    font:inherit; padding:6px 8px; border-radius:3px;
+  }
+  input:focus-visible, select:focus-visible{outline:2px solid var(--accent2); outline-offset:1px;}
+  .row{display:flex; gap:8px;}
+  .row > *{flex:1;}
+  button.small{
+    background:var(--panel2); border:1px solid var(--line); color:var(--text);
+    font:inherit; font-size:12px; padding:6px 8px; cursor:pointer; border-radius:3px;
+  }
+  button.small:hover{border-color:var(--accent);}
+  button.small:focus-visible{outline:2px solid var(--accent2); outline-offset:1px;}
+  hr{border:none; border-top:1px solid var(--line);}
+  #readouts{display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; font-size:12px;}
+  #readouts .k{color:var(--dim);}
+  #readouts .v{text-align:right;}
+  #viewArea{flex:1; display:flex; flex-direction:column; min-width:0;}
+  #tabs{display:flex; gap:2px; padding:8px 12px 0; background:var(--bg);}
+  #tabs button{
+    background:var(--panel); border:1px solid var(--line); border-bottom:none; color:var(--dim);
+    font:inherit; font-size:12px; padding:7px 16px; cursor:pointer; border-radius:4px 4px 0 0;
+  }
+  #tabs button[aria-selected=true]{color:var(--accent); background:var(--panel2); font-weight:600;}
+  #tabs button:focus-visible{outline:2px solid var(--accent2);}
+  #canvasWrap{
+    flex:1; display:flex; align-items:center; justify-content:center;
+    background:var(--panel2); border-top:1px solid var(--line); min-height:0; position:relative; overflow:hidden;
+  }
+  canvas{max-width:100%; max-height:100%; image-rendering:auto; display:none;}
+  canvas.active{display:block;}
+  #globeCanvas.active{cursor:grab;}
+  #globeCanvas.dragging{cursor:grabbing;}
+  #legend{
+    position:absolute; bottom:10px; left:12px; background:rgba(14,17,22,0.85);
+    border:1px solid var(--line); border-radius:3px; padding:8px 10px; font-size:11px; color:var(--dim);
+    max-width:420px; line-height:1.5;
+  }
+  #hint{position:absolute; top:10px; right:12px; color:var(--dim); font-size:11px; background:rgba(14,17,22,0.75); padding:4px 8px; border-radius:3px;}
+  .swatch{display:inline-block; width:10px; height:10px; border-radius:2px; margin:0 3px -1px 6px;}
+  @media (prefers-reduced-motion: reduce){ #progressBar{transition:none;} }
+  @media (max-width: 760px){
+    main{flex-direction:column;}
+    #controls{width:100%; flex-direction:row; flex-wrap:wrap; border-right:none; border-bottom:1px solid var(--line);}
+    .ctl{min-width:150px; flex:1;}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>PLANET FORGE <span>/ stages 1–2 — tectonics · climate</span></h1>
+  <button id="genBtn">Generate world</button>
+  <div id="progressWrap"><div id="progressBar"></div></div>
+  <div id="phaseLabel">Ready.</div>
+</header>
+<main>
+  <aside id="controls">
+    <div class="ctl">
+      <label for="seedInput">World seed</label>
+      <div class="row">
+        <input type="text" id="seedInput" value="long-dust-1" spellcheck="false">
+        <button class="small" id="randSeed" style="flex:0 0 auto" title="Random seed">⟳</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <label for="plateCount">Plates <span class="val" id="plateCountVal">9</span></label>
+      <input type="range" id="plateCount" min="4" max="22" step="1" value="9">
+    </div>
+    <div class="ctl">
+      <label for="landFrac">Continental crust <span class="val" id="landFracVal">34%</span></label>
+      <input type="range" id="landFrac" min="18" max="55" step="1" value="34">
+    </div>
+    <div class="ctl">
+      <label for="clusterCtl">Continental clustering <span class="val" id="clusterVal">65%</span></label>
+      <input type="range" id="clusterCtl" min="0" max="100" step="5" value="65">
+    </div>
+    <div class="ctl">
+      <label for="tiltCtl">Axial tilt <span class="val" id="tiltVal">23°</span></label>
+      <input type="range" id="tiltCtl" min="0" max="45" step="1" value="23">
+    </div>
+    <div class="ctl">
+      <label for="driftSteps">Drift steps <span class="val" id="driftStepsVal">48</span></label>
+      <input type="range" id="driftSteps" min="0" max="96" step="4" value="48">
+    </div>
+    <div class="ctl">
+      <label for="detail">Detail</label>
+      <select id="detail">
+        <option value="6000">Draft (6k parcels)</option>
+        <option value="15000" selected>Standard (15k parcels)</option>
+        <option value="28000">Fine (28k parcels)</option>
+      </select>
+    </div>
+    <hr>
+    <div class="ctl">
+      <label for="oceanPct">Sea level — ocean coverage <span class="val" id="oceanPctVal">65%</span></label>
+      <input type="range" id="oceanPct" min="45" max="85" step="1" value="65">
+    </div>
+    <hr>
+    <div id="readouts">
+      <span class="k">Parcels</span><span class="v" id="roParcels">—</span>
+      <span class="k">Subducted</span><span class="v" id="roSubducted">—</span>
+      <span class="k">New crust</span><span class="v" id="roSpawned">—</span>
+      <span class="k">Land area</span><span class="v" id="roLand">—</span>
+      <span class="k">Sim time</span><span class="v" id="roSimT">—</span>
+      <span class="k">Raster time</span><span class="v" id="roRasT">—</span>
+    </div>
+    <hr>
+    <button class="small" id="exportBtn">Export current view as PNG</button>
+  </aside>
+  <section id="viewArea">
+    <div id="tabs" role="tablist">
+      <button role="tab" aria-selected="true" data-view="elev">Elevation</button>
+      <button role="tab" aria-selected="false" data-view="plates">Plates &amp; boundaries</button>
+      <button role="tab" aria-selected="false" data-view="age">Crust age</button>
+      <button role="tab" aria-selected="false" data-view="temp">Temperature</button>
+      <button role="tab" aria-selected="false" data-view="rain">Rainfall</button>
+      <button role="tab" aria-selected="false" data-view="biome">Biomes</button>
+      <button role="tab" aria-selected="false" data-view="globe">Globe</button>
+    </div>
+    <div id="canvasWrap">
+      <canvas id="flatCanvas" width="1024" height="512" class="active"></canvas>
+      <canvas id="globeCanvas" width="640" height="640"></canvas>
+      <div id="hint" hidden>drag to rotate</div>
+      <div id="legend">Generate a world to begin. Tectonic parcels will drift, collide, subduct, and spread before elevation is rasterized.</div>
+    </div>
+  </section>
+</main>
+
+<script>
+"use strict";
+/* ============================================================
+   PLANET FORGE — Stage 1
+   Pipeline: plate seeding → drift-lite simulation (collision,
+   subduction, spreading) → elevation rasterization → views.
+   ============================================================ */
+
+// ---------- utilities ----------
+const TAU = Math.PI * 2;
+function fnv1a(str){
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < str.length; i++){
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+function mulberry32(a){
+  return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function clamp(x, a, b){ return x < a ? a : (x > b ? b : x); }
+function lerp(a, b, t){ return a + (b - a) * t; }
+
+// ---------- seeded 3D value noise + fbm ----------
+function makeNoise(rand){
+  const perm = new Uint8Array(512);
+  const p = new Uint8Array(256);
+  for (let i = 0; i < 256; i++) p[i] = i;
+  for (let i = 255; i > 0; i--){
+    const j = (rand() * (i + 1)) | 0;
+    const t = p[i]; p[i] = p[j]; p[j] = t;
+  }
+  for (let i = 0; i < 512; i++) perm[i] = p[i & 255];
+  function g(ix, iy, iz){
+    return perm[(perm[(perm[ix & 255] + iy) & 255] + iz) & 255] / 255;
+  }
+  function smooth(t){ return t * t * (3 - 2 * t); }
+  function noise(x, y, z){
+    const ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z);
+    const fx = x - ix, fy = y - iy, fz = z - iz;
+    const sx = smooth(fx), sy = smooth(fy), sz = smooth(fz);
+    const c000 = g(ix, iy, iz),     c100 = g(ix+1, iy, iz);
+    const c010 = g(ix, iy+1, iz),   c110 = g(ix+1, iy+1, iz);
+    const c001 = g(ix, iy, iz+1),   c101 = g(ix+1, iy, iz+1);
+    const c011 = g(ix, iy+1, iz+1), c111 = g(ix+1, iy+1, iz+1);
+    const x00 = lerp(c000, c100, sx), x10 = lerp(c010, c110, sx);
+    const x01 = lerp(c001, c101, sx), x11 = lerp(c011, c111, sx);
+    return lerp(lerp(x00, x10, sy), lerp(x01, x11, sy), sz); // 0..1
+  }
+  function fbm(x, y, z, oct){
+    let sum = 0, amp = 0.5, f = 1, norm = 0;
+    for (let o = 0; o < oct; o++){
+      sum += amp * noise(x * f, y * f, z * f);
+      norm += amp; amp *= 0.5; f *= 2.07;
+    }
+    return sum / norm; // 0..1
+  }
+  return { noise, fbm };
+}
+
+// ---------- sphere geometry ----------
+function fibonacciSphere(n){
+  const pts = new Float32Array(n * 3);
+  const ga = Math.PI * (3 - Math.sqrt(5));
+  for (let i = 0; i < n; i++){
+    const y = 1 - (2 * (i + 0.5)) / n;
+    const r = Math.sqrt(Math.max(0, 1 - y * y));
+    const th = ga * i;
+    pts[i*3]   = Math.cos(th) * r;
+    pts[i*3+1] = y;
+    pts[i*3+2] = Math.sin(th) * r;
+  }
+  return pts;
+}
+// Rodrigues rotation of (px,py,pz) about unit axis (kx,ky,kz) by angle a.
+function rotAxis(px, py, pz, kx, ky, kz, a, out){
+  const c = Math.cos(a), s = Math.sin(a), d = kx*px + ky*py + kz*pz;
+  const cx = ky*pz - kz*py, cy = kz*px - kx*pz, cz = kx*py - ky*px;
+  out[0] = px*c + cx*s + kx*d*(1-c);
+  out[1] = py*c + cy*s + ky*d*(1-c);
+  out[2] = pz*c + cz*s + kz*d*(1-c);
+}
+function normalize3(v){
+  const L = Math.hypot(v[0], v[1], v[2]) || 1;
+  v[0]/=L; v[1]/=L; v[2]/=L; return v;
+}
+
+// ---------- spatial hash on unit sphere (3D grid) ----------
+class Hash3 {
+  constructor(cell){
+    this.cell = cell;
+    this.map = new Map();
+  }
+  key(x, y, z){
+    const c = this.cell;
+    const ix = Math.floor((x + 1.5) / c), iy = Math.floor((y + 1.5) / c), iz = Math.floor((z + 1.5) / c);
+    return ix * 1048576 + iy * 1024 + iz; // safe for cell >= 0.004
+  }
+  clear(){ this.map.clear(); }
+  insert(x, y, z, idx){
+    const k = this.key(x, y, z);
+    let arr = this.map.get(k);
+    if (!arr){ arr = []; this.map.set(k, arr); }
+    arr.push(idx);
+  }
+  // visit all indices within chord radius r of (x,y,z); cb(idx, distSq)
+  query(x, y, z, r, cb){
+    const c = this.cell, rings = Math.ceil(r / c);
+    const bx = Math.floor((x + 1.5) / c), by = Math.floor((y + 1.5) / c), bz = Math.floor((z + 1.5) / c);
+    const r2 = r * r;
+    for (let dx = -rings; dx <= rings; dx++)
+      for (let dy = -rings; dy <= rings; dy++)
+        for (let dz = -rings; dz <= rings; dz++){
+          const arr = this.map.get((bx+dx) * 1048576 + (by+dy) * 1024 + (bz+dz));
+          if (!arr) continue;
+          for (let m = 0; m < arr.length; m++){
+            const j = arr[m];
+            const ddx = PX[j*3] - x, ddy = PX[j*3+1] - y, ddz = PX[j*3+2] - z;
+            const d2 = ddx*ddx + ddy*ddy + ddz*ddz;
+            if (d2 <= r2) cb(j, d2);
+          }
+        }
+  }
+}
+
+// ---------- global state ----------
+let PX = null;              // parcel positions (Float32Array cap*3) — module-level for Hash3 access
+let world = null;           // everything about the current generated world
+let running = false;
+
+const $ = id => document.getElementById(id);
+const flatCanvas = $("flatCanvas"), globeCanvas = $("globeCanvas");
+const flatCtx = flatCanvas.getContext("2d"), globeCtx = globeCanvas.getContext("2d");
+const RW = 1024, RH = 512;  // raster resolution
+
+// ---------- generation pipeline ----------
+async function generate(){
+  if (running) return;
+  running = true;
+  $("genBtn").disabled = true;
+  const t0 = performance.now();
+
+  const seedStr = $("seedInput").value.trim() || "0";
+  const numPlates = +$("plateCount").value;
+  const landTargetFrac = +$("landFrac").value / 100;
+  const steps = +$("driftSteps").value;
+  const N = +$("detail").value;
+
+  const rand = mulberry32(fnv1a(seedStr));
+  const noiseA = makeNoise(rand); // continent shapes / plate warp
+  const noiseB = makeNoise(rand); // terrain detail
+
+  // --- geometry scales ---
+  const spacing = Math.sqrt(4 * Math.PI / N);   // ~angular spacing (rad ≈ chord)
+  const collideR = spacing * 0.60;
+  const gapR     = spacing * 1.35;
+  const cap = Math.ceil(N * 2.2);
+
+  // --- parcel arrays ---
+  PX = new Float32Array(cap * 3);
+  const basePts = fibonacciSphere(N);           // static probe lattice for spreading
+  PX.set(basePts.subarray(0, N * 3));
+  const plateId = new Int16Array(cap);
+  const isCont  = new Uint8Array(cap);
+  const thick   = new Float32Array(cap);
+  const age     = new Float32Array(cap);
+  const alive   = new Uint8Array(cap);
+  alive.fill(1, 0, N);
+  let count = N;
+  const freeList = [];
+  let statSubducted = 0, statSpawned = 0;
+
+  setPhase("Seeding plates and cratons…", 2);
+  await tick();
+
+  // --- plates: seed points, warped Voronoi assignment, Euler poles ---
+  const plates = [];
+  for (let p = 0; p < numPlates; p++){
+    const v = normalize3([rand()*2-1, rand()*2-1, rand()*2-1]);
+    const pole = normalize3([rand()*2-1, rand()*2-1, rand()*2-1]);
+    const omega = (0.003 + rand() * 0.006) * (rand() < 0.5 ? -1 : 1);
+    plates.push({ seed: v, pole, omega, hue: (p * 137.5) % 360 });
+  }
+  for (let i = 0; i < N; i++){
+    const x = PX[i*3], y = PX[i*3+1], z = PX[i*3+2];
+    let best = -1, bestD = 1e9;
+    for (let p = 0; p < numPlates; p++){
+      const s = plates[p].seed;
+      const dot = clamp(x*s[0] + y*s[1] + z*s[2], -1, 1);
+      const d = Math.acos(dot)
+        + 0.26 * (noiseA.fbm(x*1.3 + p*13.7, y*1.3, z*1.3, 3) - 0.5)
+        + 0.11 * (noiseA.fbm(x*3.9 + p*13.7, y*3.9, z*3.9, 3) - 0.5)
+        + 0.05 * (noiseA.fbm(x*9.5 + p*13.7, y*9.5, z*9.5, 2) - 0.5);
+      if (d < bestD){ bestD = d; best = p; }
+    }
+    plateId[i] = best;
+  }
+
+  // --- continental crust: domain-warped noise field masked by cluster falloff ---
+  // No caps: outlines come from thresholded warped noise, so lobes, peninsulas,
+  // and inland seas emerge instead of circle-unions. Shape constants are drawn
+  // per seed (anisotropy, warp strength, base frequency) so worlds differ
+  // structurally, not just in phase. Clustering slider = falloff mask strength.
+  const clustering = +$("clusterCtl").value / 100;
+  const clusterCount = Math.max(1, Math.round(lerp(5.5, 1.2, clustering) + (rand() - 0.5) * 0.9));
+  const clusterCenters = [];
+  for (let c = 0; c < clusterCount; c++)
+    clusterCenters.push(normalize3([rand()*2-1, rand()*2-1, rand()*2-1]));
+  // per-seed shape character
+  const axU = normalize3([rand()*2-1, rand()*2-1, rand()*2-1]);
+  let axV = normalize3([rand()*2-1, rand()*2-1, rand()*2-1]);
+  { const d = axV[0]*axU[0] + axV[1]*axU[1] + axV[2]*axU[2];
+    axV = normalize3([axV[0]-d*axU[0], axV[1]-d*axU[1], axV[2]-d*axU[2]]); }
+  const axW = [axU[1]*axV[2]-axU[2]*axV[1], axU[2]*axV[0]-axU[0]*axV[2], axU[0]*axV[1]-axU[1]*axV[0]];
+  const stX = 0.6 + rand() * 0.9, stY = 0.6 + rand() * 0.9; // anisotropic stretch
+  const wAmp = 0.9 + rand() * 1.4;                          // domain-warp strength
+  const f0 = 1.5 + rand() * 0.9;                            // base shape frequency
+  const spreadR = lerp(1.5, 0.85, clustering);
+  const nAmp = lerp(1.35, 0.85, clustering);                // noise vs falloff dominance
+  const field = new Float32Array(N);
+  for (let i = 0; i < N; i++){
+    const x = PX[i*3], y = PX[i*3+1], z = PX[i*3+2];
+    let dC = 1e9;
+    for (let c = 0; c < clusterCount; c++){
+      const cc = clusterCenters[c];
+      const a = Math.acos(clamp(x*cc[0] + y*cc[1] + z*cc[2], -1, 1));
+      if (a < dC) dC = a;
+    }
+    const qx = (x*axU[0] + y*axU[1] + z*axU[2]) * stX;
+    const qy = (x*axV[0] + y*axV[1] + z*axV[2]) * stY;
+    const qz = (x*axW[0] + y*axW[1] + z*axW[2]);
+    const w1 = noiseA.fbm(qx*1.4 + 11.7, qy*1.4, qz*1.4, 3) - 0.5;
+    const w2 = noiseA.fbm(qx*1.4 + 71.3, qy*1.4, qz*1.4, 3) - 0.5;
+    const n = (noiseA.fbm(qx*f0 + wAmp*w1, qy*f0 + wAmp*w2, qz*f0 + wAmp*w1, 5) - 0.5) * 2
+            + (noiseA.fbm(qx*f0*3.1 + 5.1, qy*f0*3.1, qz*f0*3.1, 3) - 0.5) * 0.55
+            + (noiseA.fbm(qx*f0*7.4 + 9.2, qy*f0*7.4, qz*f0*7.4, 2) - 0.5) * 0.22;
+    field[i] = n * nAmp - Math.pow(dC / spreadR, 1.5);
+  }
+  // bisect threshold so land fraction hits the target exactly
+  let bLo = -3, bHi = 3;
+  for (let it = 0; it < 14; it++){
+    const mid = (bLo + bHi) / 2;
+    let landN = 0;
+    for (let i = 0; i < N; i++) if (field[i] > mid) landN++;
+    if (landN / N > landTargetFrac) bLo = mid; else bHi = mid;
+  }
+  const contBias = (bLo + bHi) / 2;
+  for (let i = 0; i < N; i++){
+    const x = PX[i*3], y = PX[i*3+1], z = PX[i*3+2];
+    if (field[i] > contBias){
+      isCont[i] = 1;
+      thick[i] = 0.28 + 0.28 * noiseA.fbm(x*1.9 + 7.7, y*1.9, z*1.9, 4);
+    } else {
+      age[i] = 20 + 60 * noiseA.fbm(x*1.2 + 91.3, y*1.2, z*1.2, 3); // pre-aged ocean floor
+    }
+  }
+
+  // --- drift simulation ---
+  const hash = new Hash3(gapR);
+  const tmp = [0, 0, 0];
+  const simT0 = performance.now();
+  const CACCUM = 0.011, ARC = 0.006, MAXTHICK = 1.45;
+  const arcGate = (x, y, z) => noiseA.fbm(x*6.5 + 57.1, y*6.5, z*6.5, 3);   // segment-scale gating
+  const arcRegion = (x, y, z) => noiseA.fbm(x*1.4 + 83.7, y*1.4, z*1.4, 3); // regional permission
+
+  for (let step = 0; step < steps; step++){
+    // 1. advect parcels with their plate's rotation
+    for (let i = 0; i < count; i++){
+      if (!alive[i]) continue;
+      const pl = plates[plateId[i]];
+      rotAxis(PX[i*3], PX[i*3+1], PX[i*3+2], pl.pole[0], pl.pole[1], pl.pole[2], pl.omega, tmp);
+      PX[i*3] = tmp[0]; PX[i*3+1] = tmp[1]; PX[i*3+2] = tmp[2];
+      if (!isCont[i]) age[i] += 1;
+    }
+    // 2. rebuild hash
+    hash.clear();
+    for (let i = 0; i < count; i++) if (alive[i]) hash.insert(PX[i*3], PX[i*3+1], PX[i*3+2], i);
+
+    // 3. collisions (each unordered pair once via j > i)
+    for (let i = 0; i < count; i++){
+      if (!alive[i]) continue;
+      const xi = PX[i*3], yi = PX[i*3+1], zi = PX[i*3+2];
+      const pli = plateId[i];
+      hash.query(xi, yi, zi, collideR, (j) => {
+        if (j <= i || !alive[j] || !alive[i]) return;
+        if (plateId[j] === pli) return;
+        // approaching? relative velocity vs separation
+        const pa = plates[pli], pb = plates[plateId[j]];
+        // v = omega * (pole × r)
+        const vax = pa.omega * (pa.pole[1]*zi - pa.pole[2]*yi);
+        const vay = pa.omega * (pa.pole[2]*xi - pa.pole[0]*zi);
+        const vaz = pa.omega * (pa.pole[0]*yi - pa.pole[1]*xi);
+        const xj = PX[j*3], yj = PX[j*3+1], zj = PX[j*3+2];
+        const vbx = pb.omega * (pb.pole[1]*zj - pb.pole[2]*yj);
+        const vby = pb.omega * (pb.pole[2]*xj - pb.pole[0]*zj);
+        const vbz = pb.omega * (pb.pole[0]*yj - pb.pole[1]*xj);
+        const sx = xj - xi, sy = yj - yi, sz = zj - zi;
+        const approach = (vax - vbx) * sx + (vay - vby) * sy + (vaz - vbz) * sz;
+        if (approach <= 0) return; // moving apart or sliding: no convergence here
+        const ci = isCont[i], cj = isCont[j];
+        const sLen = Math.hypot(sx, sy, sz) || 1e-9;
+        const rate = approach / sLen;      // closing speed (rad/step)
+        const g = arcGate(xi, yi, zi);     // 0..1 segmentation along the boundary
+        if (ci && cj){                     // continent–continent: orogeny
+          const k = CACCUM * (0.6 + 0.8 * g) * clamp(rate / 0.008, 0.3, 1.4);
+          thick[i] = Math.min(MAXTHICK, thick[i] + k);
+          thick[j] = Math.min(MAXTHICK, thick[j] + k);
+        } else if (ci && !cj){             // ocean j subducts under continent i
+          alive[j] = 0; freeList.push(j); statSubducted++;
+          thick[i] = Math.min(MAXTHICK, thick[i] + ARC * (0.5 + g)); // cordilleran uplift
+        } else if (!ci && cj){
+          alive[i] = 0; freeList.push(i); statSubducted++;
+          thick[j] = Math.min(MAXTHICK, thick[j] + ARC * (0.5 + g));
+        } else {                           // ocean–ocean: older slab subducts
+          const older = age[i] >= age[j] ? i : j;
+          const younger = older === i ? j : i;
+          alive[older] = 0; freeList.push(older); statSubducted++;
+          const R = arcRegion(xi, yi, zi);
+          if (rate > 0.004 && R > 0.52 && g > 0.55){ // permitted region + favorable segment + fast closing
+            thick[younger] = Math.min(0.50,
+              thick[younger] + ARC * (g - 0.55) * 4.0 * clamp(rate / 0.01, 0, 1.5));
+          } else if (rate > 0.0015){       // elsewhere: low submarine ridge, stays drowned
+            thick[younger] = Math.min(0.28, thick[younger] + ARC * (0.25 + 0.5 * g));
+          }
+        }
+      });
+    }
+
+    // 4. spreading: fill gaps at static probe lattice with fresh oceanic crust
+    for (let q = 0; q < N; q++){
+      const qx = basePts[q*3], qy = basePts[q*3+1], qz = basePts[q*3+2];
+      let found = false;
+      hash.query(qx, qy, qz, gapR, () => { found = true; });
+      if (found) continue;
+      // nearest alive parcel (widening search) donates its plate id
+      let donor = -1, donorD = 1e9;
+      for (let mult = 2; mult <= 8 && donor < 0; mult *= 2){
+        hash.query(qx, qy, qz, gapR * mult, (j, d2) => {
+          if (d2 < donorD){ donorD = d2; donor = j; }
+        });
+      }
+      if (donor < 0) continue;
+      let slot;
+      if (freeList.length) slot = freeList.pop();
+      else if (count < cap) slot = count++;
+      else continue;
+      PX[slot*3] = qx; PX[slot*3+1] = qy; PX[slot*3+2] = qz;
+      plateId[slot] = plateId[donor];
+      isCont[slot] = 0; thick[slot] = 0; age[slot] = 0; alive[slot] = 1;
+      hash.insert(qx, qy, qz, slot);
+      statSpawned++;
+    }
+
+    if (step % 6 === 0){
+      setPhase(`Drifting plates… step ${step + 1}/${steps}`, 5 + 45 * (step / Math.max(1, steps)));
+      await tick();
+    }
+  }
+  const simMs = performance.now() - simT0;
+
+  // --- rasterize elevation + diagnostics ---
+  setPhase("Rasterizing elevation…", 52);
+  await tick();
+  const rasT0 = performance.now();
+
+  hash.clear();
+  for (let i = 0; i < count; i++) if (alive[i]) hash.insert(PX[i*3], PX[i*3+1], PX[i*3+2], i);
+
+  const elev = new Float32Array(RW * RH);
+  const rPlate = new Int16Array(RW * RH);
+  const rCont  = new Uint8Array(RW * RH);
+  const rAge   = new Float32Array(RW * RH);
+
+  function parcelElev(i){
+    if (isCont[i]) return 0.06 + thick[i] * 0.85;
+    return -0.34 - 0.36 * Math.sqrt(Math.min(age[i], 90) / 90) + thick[i] * 0.9;
+  }
+
+  const nnIdx = new Int32Array(4), nnD = new Float32Array(4);
+  for (let py = 0; py < RH; py++){
+    const lat = (0.5 - (py + 0.5) / RH) * Math.PI;
+    const cl = Math.cos(lat), sl = Math.sin(lat);
+    for (let px = 0; px < RW; px++){
+      const lon = ((px + 0.5) / RW - 0.5) * TAU;
+      const x = cl * Math.cos(lon), y = sl, z = cl * Math.sin(lon);
+      // gather up to 4 nearest parcels, widening search if needed
+      let nn = 0;
+      for (let r = gapR * 1.6; nn === 0 && r < gapR * 13; r *= 2){
+        nn = 0;
+        hash.query(x, y, z, r, (j, d2) => {
+          if (nn < 4){ nnIdx[nn] = j; nnD[nn] = d2; nn++; }
+          else {
+            let worst = 0;
+            for (let m = 1; m < 4; m++) if (nnD[m] > nnD[worst]) worst = m;
+            if (d2 < nnD[worst]){ nnIdx[worst] = j; nnD[worst] = d2; }
+          }
+        });
+      }
+      const idx = py * RW + px;
+      if (nn === 0){ elev[idx] = -0.6; rPlate[idx] = -1; continue; }
+      let esum = 0, wsum = 0, best = 0;
+      for (let m = 0; m < nn; m++){
+        const w = 1 / (nnD[m] + 1e-7);
+        esum += parcelElev(nnIdx[m]) * w; wsum += w;
+        if (nnD[m] < nnD[best]) best = m;
+      }
+      let e = esum / wsum;
+      // fractal detail: gentle everywhere, ridged in high terrain
+      const d1 = (noiseB.fbm(x * 3.1, y * 3.1, z * 3.1, 5) - 0.5);
+      const rough = 0.06 + Math.max(0, e) * 0.22;
+      e += d1 * rough;
+      // shoreline crinkle: domain-warped noise, concentrated in the sea-level band
+      const q1 = noiseB.fbm(x*2.2 + 17.4, y*2.2, z*2.2, 3);
+      const crin = noiseB.fbm(x*6.4 + q1*2.2, y*6.4 + q1*1.7, z*6.4, 4) - 0.5;
+      const band = (e - 0.04) / 0.16;
+      e += crin * 0.14 * Math.exp(-band * band);
+      if (e > 0.35){
+        const rg = 1 - Math.abs(noiseB.fbm(x * 5.7 + 3.3, y * 5.7, z * 5.7, 4) * 2 - 1);
+        e += (rg - 0.5) * 0.18 * ((e - 0.35) / 0.9);
+      }
+      elev[idx] = e;
+      const b = nnIdx[best];
+      rPlate[idx] = plateId[b];
+      rCont[idx] = isCont[b];
+      rAge[idx] = age[b];
+    }
+    if (py % 32 === 0){
+      setPhase(`Rasterizing elevation… ${Math.round(100 * py / RH)}%`, 52 + 32 * (py / RH));
+      await tick();
+    }
+  }
+  const rasMs = performance.now() - rasT0;
+
+  // --- area-weighted hypsometric histogram for sea level ---
+  const BINS = 1024, hist = new Float32Array(BINS);
+  let eMin = 1e9, eMax = -1e9;
+  for (let i = 0; i < elev.length; i++){ if (elev[i] < eMin) eMin = elev[i]; if (elev[i] > eMax) eMax = elev[i]; }
+  const span = (eMax - eMin) || 1;
+  let wTotal = 0;
+  for (let py = 0; py < RH; py++){
+    const w = Math.cos((0.5 - (py + 0.5) / RH) * Math.PI);
+    for (let px = 0; px < RW; px++){
+      hist[clamp(((elev[py*RW+px] - eMin) / span * (BINS-1)) | 0, 0, BINS-1)] += w;
+      wTotal += w;
+    }
+  }
+  const cumul = new Float32Array(BINS);
+  let acc = 0;
+  for (let b = 0; b < BINS; b++){ acc += hist[b]; cumul[b] = acc / wTotal; }
+
+  world = { elev, rPlate, rCont, rAge, plates, eMin, span, cumul,
+            stats: { count, statSubducted, statSpawned, simMs, rasMs } };
+  world.seaLevel = seaLevelFor(+$("oceanPct").value / 100);
+
+  await computeClimate(86);
+
+  setPhase("Rendering…", 97);
+  await tick();
+  renderAll();
+  updateReadouts();
+  setPhase(`Done in ${((performance.now() - t0) / 1000).toFixed(1)}s.`, 100);
+  running = false;
+  $("genBtn").disabled = false;
+}
+
+function seaLevelFor(oceanFrac){
+  const { cumul, eMin, span } = world;
+  for (let b = 0; b < cumul.length; b++)
+    if (cumul[b] >= oceanFrac) return eMin + (b / (cumul.length - 1)) * span;
+  return eMin + span;
+}
+
+// ---------- climate (stage 2): temperature, winds, moisture, biomes ----------
+// Two seasonal states (solstices, declination = ±0.82·tilt) are simulated and
+// combined. Temperature: latitude insolation shifted by declination, amplified
+// over continental interiors, cooled by elevation lapse. Winds: three-cell
+// zonal circulation whose bands follow the thermal equator. Moisture: iterative
+// upwind advection from ocean evaporation, raining out via a base rate,
+// orographic lift (→ rain shadows), and ITCZ convergence, suppressed in the
+// subtropical subsidence belts. Biomes: Köppen-lite from T/P seasonality.
+const CW = 512, CH = 256;
+const PMM = 24000; // sim precip units → pseudo-mm/yr
+
+function windAt(lat, decl){
+  const lp = lat - decl * 0.45; // circulation follows the sun
+  const a = Math.abs(lp), s = Math.sign(lp) || 1;
+  if (a < 0.52){ const f = Math.sin(Math.PI * a / 0.52); return [-0.9 * f, -0.35 * s * f]; }       // trades
+  if (a < 1.05){ const f = Math.sin(Math.PI * (a - 0.52) / 0.53); return [1.0 * f, 0.25 * s * f]; } // westerlies
+  const f = Math.sin(Math.PI * Math.min(1, (a - 1.05) / 0.52)); return [-0.5 * f, -0.2 * s * f];    // polar easterlies
+}
+
+function climateSeason(cel, landM, oc, sea, decl){
+  const T = new Float32Array(CW * CH);
+  for (let y = 0; y < CH; y++){
+    const lat = (0.5 - (y + 0.5) / CH) * Math.PI;
+    for (let x = 0; x < CW; x++){
+      const i = y * CW + x;
+      const cont = 1 - oc[i];                              // 0 oceanic … 1 continental
+      const effLat = lat - decl * (0.35 + 0.75 * cont);    // interiors swing harder with season
+      let t = -27 + 57 * Math.cos(Math.min(Math.abs(effLat), Math.PI * 0.55));
+      if (cel[i] > sea) t -= 30 * (cel[i] - sea);          // lapse rate
+      T[i] = t;
+    }
+  }
+  let H = new Float32Array(CW * CH);
+  const P = new Float32Array(CW * CH);
+  const stepLen = 1.7;
+  for (let it = 0; it < 60; it++){
+    const Hn = new Float32Array(CW * CH);
+    for (let y = 0; y < CH; y++){
+      const lat = (0.5 - (y + 0.5) / CH) * Math.PI;
+      const cosl = Math.max(0.18, Math.cos(lat));
+      const [wu, wv] = windAt(lat, decl);
+      const itcz = 0.11 * Math.exp(-Math.pow((lat - decl * 0.5) / 0.10, 2));
+      const lp = Math.abs(lat - decl * 0.45);
+      const subs = 1 - 0.55 * Math.exp(-Math.pow((lp - 0.47) / 0.13, 2));
+      for (let x = 0; x < CW; x++){
+        const i = y * CW + x;
+        // upwind bilinear sample
+        let sx = x - wu * stepLen / cosl, sy2 = clamp(y + wv * stepLen, 0, CH - 1.001);
+        sx = ((sx % CW) + CW) % CW;
+        const x0 = sx | 0, y0 = sy2 | 0, fx = sx - x0, fy = sy2 - y0;
+        const x1 = (x0 + 1) % CW, y1 = Math.min(CH - 1, y0 + 1);
+        const w00 = (1-fx)*(1-fy), w10 = fx*(1-fy), w01 = (1-fx)*fy, w11 = fx*fy;
+        const Hup = H[y0*CW+x0]*w00 + H[y0*CW+x1]*w10 + H[y1*CW+x0]*w01 + H[y1*CW+x1]*w11;
+        const eUp = Math.max(sea, cel[y0*CW+x0]*w00 + cel[y0*CW+x1]*w10 + cel[y1*CW+x0]*w01 + cel[y1*CW+x1]*w11);
+        const oro = Math.max(0, Math.max(cel[i], sea) - eUp) * 6.0;
+        const rate = Math.min(0.9, (0.055 + oro + itcz) * subs);
+        let p = Hup * rate;
+        let h = Hup - p;
+        if (!landM[i]){ h = Math.max(h, clamp(0.22 + 0.03 * T[i], 0.03, 1.35)); p *= 0.9; }
+        Hn[i] = h; P[i] = p;
+      }
+    }
+    H = Hn;
+  }
+  return { T, P };
+}
+
+function classifyBiome(Tann, Tmin, Tmax, Pmm, Pw, Pc){
+  if (Tmax < 0) return 0;                                    // ice
+  if (Tmax < 7) return 1;                                    // tundra
+  const thr = Math.max(140, 20 * Tann + 280);
+  if (Pmm < thr * 0.45) return Tann >= 16 ? 4 : 3;           // hot / cold desert
+  if (Pmm < thr) return 5;                                   // steppe
+  if (Tmin > 17) return Pmm > 1700 ? 11 : (Pmm > 950 ? 10 : 9); // rainforest / seasonal / savanna
+  if (Tann < 3) return 2;                                    // boreal
+  if (Pw < 0.4 * Pc && Tann > 9) return 6;                   // mediterranean (dry warm season)
+  return Pmm > 620 ? 8 : 7;                                  // temperate forest / grassland
+}
+const BIOME_COLORS = [
+  [232,238,242], [154,167,140], [56,96,74],   [194,174,142],
+  [217,192,122], [197,184,120], [122,143,78], [168,176,106],
+  [63,122,69],   [180,169,79],  [76,143,63],  [31,110,53]
+];
+const BIOME_NAMES = ["ice","tundra","boreal","cold desert","hot desert","steppe",
+                     "mediterranean","temperate grassland","temperate forest",
+                     "savanna","tropical seasonal forest","tropical rainforest"];
+const TRAMP = [[0,58,42,102],[0.25,74,111,176],[0.45,110,180,170],[0.62,214,196,120],[0.8,214,120,70],[1,150,30,40]];
+const RRAMP = [[0,217,192,122],[0.25,168,176,106],[0.5,63,122,69],[0.75,31,110,110],[1,20,60,120]];
+
+async function computeClimate(pctFrom){
+  if (!world) return;
+  const tilt = +$("tiltCtl").value * Math.PI / 180;
+  const sea = world.seaLevel;
+  setPhase("Computing climate… downsampling", pctFrom);
+  await tick();
+  const cel = new Float32Array(CW * CH);
+  const landM = new Uint8Array(CW * CH);
+  for (let y = 0; y < CH; y++)
+    for (let x = 0; x < CW; x++){
+      const e = 0.25 * (world.elev[(2*y)*RW + 2*x] + world.elev[(2*y)*RW + 2*x+1]
+              + world.elev[(2*y+1)*RW + 2*x] + world.elev[(2*y+1)*RW + 2*x+1]);
+      cel[y*CW+x] = e;
+      landM[y*CW+x] = e >= sea ? 1 : 0;
+    }
+  let oc = new Float32Array(CW * CH);
+  for (let i = 0; i < oc.length; i++) oc[i] = landM[i] ? 0 : 1;
+  for (let pass = 0; pass < 12; pass++){
+    const nb = new Float32Array(CW * CH);
+    for (let y = 0; y < CH; y++)
+      for (let x = 0; x < CW; x++){
+        const xm = (x+CW-1)%CW, xp = (x+1)%CW, ym = Math.max(0,y-1), yp = Math.min(CH-1,y+1);
+        nb[y*CW+x] = 0.4*oc[y*CW+x] + 0.15*(oc[y*CW+xm]+oc[y*CW+xp]+oc[ym*CW+x]+oc[yp*CW+x]);
+      }
+    oc = nb;
+  }
+  setPhase("Computing climate… northern-summer season", pctFrom + 2);
+  await tick();
+  const s1 = climateSeason(cel, landM, oc, sea, tilt * 0.82);
+  setPhase("Computing climate… southern-summer season", pctFrom + 6);
+  await tick();
+  const s2 = climateSeason(cel, landM, oc, sea, -tilt * 0.82);
+  const Tann = new Float32Array(CW*CH), Tmin = new Float32Array(CW*CH), Tmax = new Float32Array(CW*CH);
+  const Pann = new Float32Array(CW*CH), biome = new Uint8Array(CW*CH);
+  for (let i = 0; i < CW*CH; i++){
+    const t1 = s1.T[i], t2 = s2.T[i], p1 = s1.P[i], p2 = s2.P[i];
+    Tann[i] = (t1 + t2) / 2;
+    Tmin[i] = Math.min(t1, t2); Tmax[i] = Math.max(t1, t2);
+    Pann[i] = (p1 + p2) / 2;
+    const Pw = t1 >= t2 ? p1 : p2, Pc = t1 >= t2 ? p2 : p1;
+    biome[i] = classifyBiome(Tann[i], Tmin[i], Tmax[i], Pann[i] * PMM, Pw * PMM, Pc * PMM);
+  }
+  world.climate = { Tann, Tmin, Tmax, Pann, biome };
+}
+
+// ---------- rendering ----------
+const HYPSO_SEA = [ // depth 0..1 → color (shallow → deep)
+  [0.00, 127, 178, 217], [0.15, 74, 128, 179], [0.45, 34, 74, 122], [1.00, 8, 22, 46]
+];
+const HYPSO_LAND = [ // height 0..1 → color
+  [0.00, 76, 122, 74], [0.18, 120, 148, 84], [0.38, 178, 166, 110],
+  [0.60, 150, 116, 78], [0.80, 120, 100, 92], [1.00, 235, 233, 228]
+];
+function rampColor(ramp, t){
+  t = clamp(t, 0, 1);
+  for (let i = 1; i < ramp.length; i++){
+    if (t <= ramp[i][0]){
+      const [t0, r0, g0, b0] = ramp[i-1], [t1, r1, g1, b1] = ramp[i];
+      const f = (t - t0) / (t1 - t0 || 1);
+      return [lerp(r0, r1, f), lerp(g0, g1, f), lerp(b0, b1, f)];
+    }
+  }
+  const L = ramp[ramp.length-1]; return [L[1], L[2], L[3]];
+}
+function elevColor(e, sea){
+  if (e < sea){
+    const d = clamp((sea - e) / 0.75, 0, 1);
+    return rampColor(HYPSO_SEA, d);
+  }
+  const h = clamp((e - sea) / 1.15, 0, 1);
+  return rampColor(HYPSO_LAND, h);
+}
+function plateColor(p, hueShift){
+  const h = ((p * 137.5) + hueShift) % 360 / 60;
+  const c = 0.5, m = 0.35, xx = c * (1 - Math.abs(h % 2 - 1));
+  let r, g, b;
+  if (h < 1){ r = c; g = xx; b = 0; } else if (h < 2){ r = xx; g = c; b = 0; }
+  else if (h < 3){ r = 0; g = c; b = xx; } else if (h < 4){ r = 0; g = xx; b = c; }
+  else if (h < 5){ r = xx; g = 0; b = c; } else { r = c; g = 0; b = xx; }
+  return [(r + m) * 255, (g + m) * 255, (b + m) * 255];
+}
+
+let curView = "elev", curFlatView = "elev";
+function renderAll(){
+  if (!world) return;
+  if (curView === "globe"){ renderFlat(curFlatView); renderGlobe(); }
+  else { curFlatView = curView; renderFlat(curView); }
+  renderLegend();
+}
+function renderFlat(view){
+  const { elev, rPlate, rCont, rAge, plates, seaLevel } = world;
+  const img = flatCtx.createImageData(RW, RH);
+  const D = img.data;
+  if (view === "elev"){
+    for (let py = 0; py < RH; py++){
+      for (let px = 0; px < RW; px++){
+        const i = py * RW + px;
+        let [r, g, b] = elevColor(elev[i], seaLevel);
+        if (elev[i] >= seaLevel){ // hillshade on land
+          const eL = elev[py*RW + Math.max(0, px-1)], eR = elev[py*RW + Math.min(RW-1, px+1)];
+          const eU = elev[Math.max(0, py-1)*RW + px], eD = elev[Math.min(RH-1, py+1)*RW + px];
+          const shade = clamp(0.82 + ((eL - eR) + (eU - eD)) * 2.2, 0.55, 1.25);
+          r *= shade; g *= shade; b *= shade;
+        }
+        const o = i * 4; D[o] = r; D[o+1] = g; D[o+2] = b; D[o+3] = 255;
+      }
+    }
+  } else if (view === "plates"){
+    for (let i = 0; i < RW * RH; i++){
+      const p = rPlate[i];
+      let [r, g, b] = p < 0 ? [20, 20, 20] : plateColor(p, 0);
+      if (world.elev[i] < world.seaLevel){ r *= 0.45; g *= 0.45; b *= 0.45; }
+      const o = i * 4; D[o] = r; D[o+1] = g; D[o+2] = b; D[o+3] = 255;
+    }
+    // boundary classification overlay
+    for (let py = 0; py < RH; py++){
+      const lat = (0.5 - (py + 0.5) / RH) * Math.PI;
+      const cl = Math.cos(lat), sl = Math.sin(lat);
+      for (let px = 0; px < RW; px++){
+        const i = py * RW + px;
+        const a = rPlate[i];
+        const bIdx = py * RW + ((px + 1) % RW);
+        const cIdx = Math.min(RH - 1, py + 1) * RW + px;
+        const bP = rPlate[bIdx], cP = rPlate[cIdx];
+        let other = -1;
+        if (bP !== a && bP >= 0) other = bP;
+        else if (cP !== a && cP >= 0) other = cP;
+        if (other < 0 || a < 0) continue;
+        const lon = ((px + 0.5) / RW - 0.5) * TAU;
+        const x = cl * Math.cos(lon), y = sl, z = cl * Math.sin(lon);
+        const pa = plates[a], pb = plates[other];
+        const vax = pa.omega * (pa.pole[1]*z - pa.pole[2]*y) - pb.omega * (pb.pole[1]*z - pb.pole[2]*y);
+        const vay = pa.omega * (pa.pole[2]*x - pa.pole[0]*z) - pb.omega * (pb.pole[2]*x - pb.pole[0]*z);
+        const vaz = pa.omega * (pa.pole[0]*y - pa.pole[1]*x) - pb.omega * (pb.pole[0]*y - pb.pole[1]*x);
+        // separation dir: from this pixel toward the neighboring plate pixel
+        const nx = (other === bP)
+          ? [cl * Math.cos(((px + 1.5) / RW - 0.5) * TAU) - x, 0, cl * Math.sin(((px + 1.5) / RW - 0.5) * TAU) - z]
+          : [0, Math.sin((0.5 - (py + 1.5) / RH) * Math.PI) - y, 0];
+        const sLen = Math.hypot(nx[0], nx[1], nx[2]) || 1;
+        const vLen = Math.hypot(vax, vay, vaz) || 1e-9;
+        const conv = (vax * nx[0] + vay * nx[1] + vaz * nx[2]) / (sLen * vLen);
+        let col;
+        if (conv > 0.35) col = [235, 80, 60];        // convergent
+        else if (conv < -0.35) col = [80, 220, 200]; // divergent
+        else col = [230, 200, 90];                    // transform
+        const o = i * 4; D[o] = col[0]; D[o+1] = col[1]; D[o+2] = col[2];
+      }
+    }
+  } else if (view === "age"){
+    for (let i = 0; i < RW * RH; i++){
+      let r, g, b;
+      if (rCont[i]){ r = 120; g = 112; b = 100; }
+      else {
+        const t = clamp(rAge[i] / 110, 0, 1);
+        r = lerp(255, 20, t); g = lerp(140, 40, t); b = lerp(50, 90, t);
+      }
+      const o = i * 4; D[o] = r; D[o+1] = g; D[o+2] = b; D[o+3] = 255;
+    }
+  } else if (view === "temp" || view === "rain" || view === "biome"){
+    const cl = world.climate;
+    for (let py = 0; py < RH; py++){
+      for (let px = 0; px < RW; px++){
+        const i = py * RW + px;
+        const ci = (py >> 1) * CW + (px >> 1);
+        let r, g, b;
+        if (view !== "temp" && elev[i] < seaLevel){
+          [r, g, b] = elevColor(elev[i], seaLevel); r *= 0.55; g *= 0.55; b *= 0.62;
+        } else if (view === "temp"){
+          [r, g, b] = rampColor(TRAMP, (cl.Tann[ci] + 35) / 70);
+        } else if (view === "rain"){
+          [r, g, b] = rampColor(RRAMP, cl.Pann[ci] * PMM / 2600);
+        } else {
+          [r, g, b] = BIOME_COLORS[cl.biome[ci]];
+          const eL = elev[py*RW + Math.max(0, px-1)], eR = elev[py*RW + Math.min(RW-1, px+1)];
+          const eU = elev[Math.max(0, py-1)*RW + px], eD2 = elev[Math.min(RH-1, py+1)*RW + px];
+          const shade = clamp(0.85 + ((eL - eR) + (eU - eD2)) * 1.8, 0.6, 1.15);
+          r *= shade; g *= shade; b *= shade;
+        }
+        const o = i * 4; D[o] = r; D[o+1] = g; D[o+2] = b; D[o+3] = 255;
+      }
+    }
+  }
+  flatCtx.putImageData(img, 0, 0);
+  world.flatData = img.data;
+}
+
+// ---------- globe (orthographic, draggable) ----------
+let gLon = 0.4, gLat = 0.35, dragging = false, lastX = 0, lastY = 0;
+function renderGlobe(){
+  if (!world) return;
+  const S = globeCanvas.width;
+  const img = globeCtx.createImageData(S, S);
+  const D = img.data;
+  const a = Math.PI / 2 - gLon, b = -gLat;
+  const ca = Math.cos(a), sa = Math.sin(a), cb = Math.cos(b), sb = Math.sin(b);
+  const src = world.flatData;
+  if (!src) return;
+  for (let pyy = 0; pyy < S; pyy++){
+    const v = -( (pyy + 0.5) / S * 2 - 1 ) * 1.02;
+    for (let pxx = 0; pxx < S; pxx++){
+      const u = ((pxx + 0.5) / S * 2 - 1) * 1.02;
+      const o = (pyy * S + pxx) * 4;
+      const rr = u * u + v * v;
+      if (rr > 1){ D[o+3] = 0; continue; }
+      const w = Math.sqrt(1 - rr);
+      // world = Ry(a) · Rx(b) · (u,v,w)
+      const y1 = v * cb - w * sb, z1 = v * sb + w * cb;
+      const x2 = u * ca + z1 * sa, z2 = -u * sa + z1 * ca;
+      const lat = Math.asin(clamp(y1, -1, 1));
+      const lon = Math.atan2(z2, x2);
+      const sx = clamp((((lon / TAU + 0.5) % 1) * RW) | 0, 0, RW - 1);
+      const sy = clamp(((0.5 - lat / Math.PI) * RH) | 0, 0, RH - 1);
+      const si = (sy * RW + sx) * 4;
+      const limb = 0.68 + 0.32 * w; // limb darkening for sphericity
+      D[o] = src[si] * limb; D[o+1] = src[si+1] * limb; D[o+2] = src[si+2] * limb; D[o+3] = 255;
+    }
+  }
+  globeCtx.putImageData(img, 0, 0);
+}
+globeCanvas.addEventListener("pointerdown", e => {
+  dragging = true; lastX = e.clientX; lastY = e.clientY;
+  globeCanvas.classList.add("dragging");
+  globeCanvas.setPointerCapture(e.pointerId);
+});
+globeCanvas.addEventListener("pointermove", e => {
+  if (!dragging) return;
+  gLon += (e.clientX - lastX) * 0.006;
+  gLat  = clamp(gLat - (e.clientY - lastY) * 0.006, -1.45, 1.45);
+  lastX = e.clientX; lastY = e.clientY;
+  renderGlobe();
+});
+globeCanvas.addEventListener("pointerup", e => {
+  dragging = false;
+  globeCanvas.classList.remove("dragging");
+  globeCanvas.releasePointerCapture(e.pointerId);
+});
+
+// ---------- legend / readouts / phases ----------
+function renderLegend(){
+  const L = $("legend");
+  if (curView === "elev"){
+    L.innerHTML = `Hypsometric tint with hillshade. Sea level set to ${$("oceanPct").value}% ocean coverage. ` +
+      `Look for: mountain belts along convergent margins, deep old-ocean basins, shallow young ridges.`;
+  } else if (curView === "plates"){
+    L.innerHTML = `Plate territories (ocean areas dimmed). Boundaries:` +
+      `<span class="swatch" style="background:#eb503c"></span>convergent` +
+      `<span class="swatch" style="background:#50dcc8"></span>divergent` +
+      `<span class="swatch" style="background:#e6c85a"></span>transform`;
+  } else if (curView === "age"){
+    L.innerHTML = `Oceanic crust age:` +
+      `<span class="swatch" style="background:rgb(255,140,50)"></span>young (ridges)` +
+      `<span class="swatch" style="background:rgb(20,40,90)"></span>old (about to subduct). ` +
+      `Continental crust in gray. Bright seams trace active spreading centers.`;
+  } else if (curView === "temp"){
+    L.innerHTML = `Annual mean temperature (sea surface included). Check: interiors hotter in summer band / colder than coasts at the same latitude, mountain ranges cold, thermal equator near geographic equator.`;
+  } else if (curView === "rain"){
+    L.innerHTML = `Annual rainfall from moisture advection. Check: wet windward coasts, dry rain shadows behind ranges, an equatorial wet band, dry subtropical belts, dry continental interiors.`;
+  } else if (curView === "biome"){
+    L.innerHTML = `Köppen-lite biomes:` +
+      `<span class="swatch" style="background:rgb(31,110,53)"></span>rainforest` +
+      `<span class="swatch" style="background:rgb(180,169,79)"></span>savanna` +
+      `<span class="swatch" style="background:rgb(217,192,122)"></span>desert` +
+      `<span class="swatch" style="background:rgb(63,122,69)"></span>temp. forest` +
+      `<span class="swatch" style="background:rgb(56,96,74)"></span>boreal` +
+      `<span class="swatch" style="background:rgb(154,167,140)"></span>tundra` +
+      `<span class="swatch" style="background:rgb(232,238,242)"></span>ice`;
+  } else {
+    L.innerHTML = `Orthographic globe. Drag to rotate. Shows whichever flat view was last selected.`;
+  }
+}
+function updateReadouts(){
+  if (!world) return;
+  const s = world.stats;
+  let aliveCells = 0, landW = 0, totW = 0;
+  for (let py = 0; py < RH; py++){
+    const w = Math.cos((0.5 - (py + 0.5) / RH) * Math.PI);
+    for (let px = 0; px < RW; px++){
+      totW += w;
+      if (world.elev[py*RW+px] >= world.seaLevel) landW += w;
+    }
+  }
+  $("roParcels").textContent = s.count.toLocaleString();
+  $("roSubducted").textContent = s.statSubducted.toLocaleString();
+  $("roSpawned").textContent = s.statSpawned.toLocaleString();
+  $("roLand").textContent = (100 * landW / totW).toFixed(1) + "%";
+  $("roSimT").textContent = (s.simMs / 1000).toFixed(1) + "s";
+  $("roRasT").textContent = (s.rasMs / 1000).toFixed(1) + "s";
+}
+function setPhase(txt, pct){
+  $("phaseLabel").textContent = txt;
+  $("progressBar").style.width = pct + "%";
+}
+function tick(){ return new Promise(r => setTimeout(r, 0)); }
+
+// ---------- UI wiring ----------
+$("genBtn").addEventListener("click", generate);
+$("randSeed").addEventListener("click", () => {
+  $("seedInput").value = Math.random().toString(36).slice(2, 10);
+});
+for (const [id, out, fmt] of [["plateCount","plateCountVal", v=>v], ["landFrac","landFracVal", v=>v+"%"],
+                              ["clusterCtl","clusterVal", v=>v+"%"], ["tiltCtl","tiltVal", v=>v+"°"],
+                              ["driftSteps","driftStepsVal", v=>v], ["oceanPct","oceanPctVal", v=>v+"%"]]){
+  $(id).addEventListener("input", () => { $(out).textContent = fmt($(id).value); });
+}
+$("oceanPct").addEventListener("input", () => {
+  if (!world) return;
+  world.seaLevel = seaLevelFor(+$("oceanPct").value / 100);
+  renderAll(); updateReadouts();
+});
+// staged recompute: tilt or a settled sea level only re-runs climate, not tectonics
+async function reclimate(){
+  if (!world || running) return;
+  running = true; $("genBtn").disabled = true;
+  await computeClimate(40);
+  renderAll();
+  setPhase("Climate updated.", 100);
+  running = false; $("genBtn").disabled = false;
+}
+$("tiltCtl").addEventListener("change", reclimate);
+$("oceanPct").addEventListener("change", reclimate);
+document.querySelectorAll("#tabs button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-selected", "false"));
+    btn.setAttribute("aria-selected", "true");
+    curView = btn.dataset.view;
+    const globe = curView === "globe";
+    flatCanvas.classList.toggle("active", !globe);
+    globeCanvas.classList.toggle("active", globe);
+    $("hint").hidden = !globe;
+    renderAll();
+  });
+});
+$("exportBtn").addEventListener("click", () => {
+  const cv = curView === "globe" ? globeCanvas : flatCanvas;
+  cv.toBlob(blob => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `planet_${$("seedInput").value.trim() || "world"}_${curView}.png`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+});
+</script>
+</body>
+</html>

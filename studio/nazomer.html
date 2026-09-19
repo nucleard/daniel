@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NAZOMER &#183; Late Summer Light Engine</title>
+<style>
+:root{
+  --bg:#131009; --panel:#191409; --panel2:#221b0e; --line:#37301e;
+  --txt:#efe6d2; --dim:#948a72; --hot:#e6a545; --hot2:#d8607c;
+  --mono:'JetBrains Mono','JetBrainsMono Nerd Font',Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--txt);font-family:var(--mono);font-size:12px;overflow:hidden}
+
+header{display:flex;align-items:center;gap:18px;height:56px;padding:0 18px;border-bottom:1px solid var(--line);background:#0d0a06}
+header .brand{font-weight:700;font-size:15px;letter-spacing:.2em;color:var(--hot);white-space:nowrap}
+header .sub{color:var(--dim);letter-spacing:.18em;font-size:11px;white-space:nowrap}
+header .seedlab{color:var(--dim);letter-spacing:.18em;font-size:11px;margin-left:8px}
+header .seedval{color:var(--hot2);font-weight:700;letter-spacing:.08em}
+header .spacer{flex:1}
+button{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;border:1px solid var(--line);background:#1e170c;color:var(--txt);padding:9px 16px;transition:background .12s}
+button:hover{background:#2c2212}
+button:disabled{opacity:.35;cursor:default}
+button:disabled:hover{background:#1e170c}
+button.primary{background:var(--hot);border-color:var(--hot);color:#1c1204;font-weight:700}
+button.primary:hover{background:#f2ba62}
+.btngroup{display:flex;gap:8px;align-items:center}
+.vr{width:1px;height:24px;background:var(--line);margin:0 4px}
+
+main{display:flex;height:calc(100% - 56px)}
+aside{width:346px;min-width:346px;border-right:1px solid var(--line);overflow-y:auto;padding:16px 16px 60px;background:var(--panel)}
+aside::-webkit-scrollbar{width:10px}
+aside::-webkit-scrollbar-thumb{background:#3e341e;border:2px solid var(--panel)}
+#stagewrap{flex:1;display:flex;align-items:center;justify-content:center;padding:28px;overflow:hidden}
+#stage{max-width:100%;max-height:100%;display:flex;align-items:center;justify-content:center}
+#stage svg{max-width:100%;max-height:calc(100vh - 130px);height:auto;box-shadow:0 0 0 1px #000,0 18px 60px rgba(0,0,0,.6)}
+
+.drop{border:1px dashed #4d402a;padding:16px 12px;text-align:center;color:var(--dim);letter-spacing:.14em;cursor:pointer;margin-bottom:16px}
+.drop:hover{border-color:var(--hot);color:var(--txt)}
+.drop .src{color:var(--hot);margin-top:8px;font-size:10px;letter-spacing:.1em;word-break:break-all}
+.section{border-top:1px solid var(--line);padding:14px 0 4px;margin-top:4px}
+.section h3{font-size:11px;font-weight:700;letter-spacing:.22em;margin-bottom:14px}
+.row{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.row label.name{width:104px;min-width:104px;color:var(--dim);letter-spacing:.14em;font-size:10px;text-transform:uppercase}
+.row .val{color:var(--hot);min-width:44px;font-weight:700}
+select,input[type=text]{font-family:var(--mono);font-size:11px;letter-spacing:.08em;background:var(--panel2);border:1px solid var(--line);color:var(--txt);padding:8px 10px;width:100%}
+select{text-transform:uppercase}
+select:focus,input[type=text]:focus{outline:1px solid var(--hot)}
+input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:4px;background:#4a3c20;border-radius:2px}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--hot);border:2px solid #131009;cursor:pointer}
+input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--hot);border:2px solid #131009;cursor:pointer}
+
+.mod{border:1px solid var(--line);margin:12px 0;background:#151007}
+.mod .modhead{display:flex;align-items:center;gap:12px;padding:12px;cursor:pointer;user-select:none}
+.mod .modhead .mid{font-weight:700;letter-spacing:.2em;font-size:11px}
+.mod .modhead .mdot{color:var(--dim)}
+.mod .modbody{padding:4px 12px 8px;border-top:1px solid #262012}
+.mod.off .modbody{display:none}
+.toggle{width:40px;min-width:40px;height:22px;border-radius:11px;background:#413620;position:relative;transition:background .15s}
+.toggle::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#131009;transition:left .15s}
+.mod:not(.off) .toggle{background:var(--hot)}
+.mod:not(.off) .toggle::after{left:21px}
+
+.check{display:flex;align-items:center;gap:10px;margin-bottom:10px;cursor:pointer;user-select:none;letter-spacing:.14em;font-size:10px;text-transform:uppercase}
+.check .box{width:16px;min-width:16px;height:16px;border:1px solid #5a4b2c;background:var(--panel2);display:flex;align-items:center;justify-content:center;color:#1c1204;font-weight:700;font-size:11px}
+.check.on .box{background:var(--hot);border-color:var(--hot)}
+.check.on .box::after{content:'\2713'}
+.note{color:#6f654e;font-size:9.5px;letter-spacing:.1em;line-height:1.7;text-transform:uppercase;margin:8px 0 10px}
+.smallbtn{padding:8px 12px;font-size:10px}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="brand">NAZOMER</span>
+  <span class="sub">LATE SUMMER LIGHT ENGINE v1.0</span>
+  <span class="seedlab">SEED</span><span class="seedval" id="seedval">0</span>
+  <span class="spacer"></span>
+  <div class="btngroup">
+    <button class="primary" id="btnRandom">&#x21bb;&nbsp; RANDOMIZE</button>
+    <button id="btnChaos">&#x2600;&nbsp; FULL CHAOS</button>
+    <button id="btnUndo" disabled>UNDO</button>
+    <button id="btnRedo" disabled>REDO</button>
+    <span class="vr"></span>
+    <button id="btnSVG">EXPORT SVG</button>
+    <button id="btnPNG2">PNG 2&#215;</button>
+    <button id="btnPNG4">PNG 4&#215;</button>
+  </div>
+</header>
+
+<main>
+<aside>
+  <div class="drop" id="drop">
+    DROP IMAGE / CLICK TO UPLOAD
+    <div class="src" id="srcname">SOURCE: DEFAULT-ZOMERAVOND</div>
+    <input type="file" id="file" accept="image/*" style="display:none">
+  </div>
+
+  <div class="section">
+    <h3>FRAME &nbsp;&#183;&nbsp; TYPE</h3>
+    <div class="row"><label class="name">Frame size</label>
+      <select id="frame">
+        <option value="1080x1350">PORTRAIT 4:5 (1080)</option>
+        <option value="1080x1440">PORTRAIT 3:4 (1080)</option>
+        <option value="1080x1920">STORY 9:16 (1080)</option>
+        <option value="1080x1080">SQUARE 1:1 (1080)</option>
+        <option value="1600x900">LANDSCAPE 16:9 (1600)</option>
+      </select></div>
+    <div class="row"><label class="name">Poster font</label>
+      <select id="dispfont">
+        <option value="'Helvetica Neue',Helvetica,Arial,sans-serif">HELVETICA / GROTESK</option>
+        <option value="'Arial Narrow','Helvetica Neue',Arial,sans-serif">NARROW GROTESK</option>
+        <option value="Georgia,'Times New Roman',serif">SERIF</option>
+      </select></div>
+  </div>
+
+  <!-- A · GEVELRIJ -->
+  <div class="mod" id="modA">
+    <div class="modhead" data-mod="A"><div class="toggle"></div><span class="mid">A</span><span class="mdot">&#183;</span><span class="mid">GEVELRIJ</span></div>
+    <div class="modbody">
+      <div class="row"><label class="name">Layout</label>
+        <select id="layout">
+          <option value="AUTO">AUTO (LOTTERY)</option>
+          <option value="GEVELRIJ">GEVELRIJ (STRIPS)</option>
+          <option value="PANELEN">PANELEN (BLOCKS)</option>
+          <option value="VLAK">VLAK (ONE PANEL)</option>
+          <option value="SPLIT">SPLIT (PAIR)</option>
+        </select></div>
+      <div class="row"><label class="name">Parcels</label><span class="val" id="countV">6</span><input type="range" id="count" min="2" max="9" step="1" value="6"></div>
+      <div class="row"><label class="name">Width vary</label><span class="val" id="varyV">0.55</span><input type="range" id="vary" min="0" max="1" step="0.05" value="0.55"></div>
+      <div class="row"><label class="name">Stagger</label><span class="val" id="staggerV">0.30</span><input type="range" id="stagger" min="0" max="0.6" step="0.02" value="0.3"></div>
+      <div class="row"><label class="name">Gap</label><span class="val" id="gapV">10</span><input type="range" id="gap" min="0" max="36" step="1" value="10"></div>
+      <div class="row"><label class="name">Water line</label><span class="val" id="waterV">0.62</span><input type="range" id="water" min="0.45" max="0.82" step="0.01" value="0.62"></div>
+      <div class="row"><label class="name">Droom</label><span class="val" id="droomV">0.35</span><input type="range" id="droom" min="0" max="1" step="0.05" value="0.35"></div>
+      <div class="check" id="ckOutline"><div class="box"></div>PARCEL OUTLINES</div>
+      <button class="smallbtn" id="btnReshuffle">&#x21bb;&nbsp; RESHUFFLE</button>
+      <div class="note">AUTO rolls a different composition every seed: strip rows, big off-grid panels, a single placed photo, or a split pair. DROOM is the chance each panel trades its photo for a treatment &#8212; ripple, glow, or a dark field. Module off = one full-bleed panel.</div>
+    </div>
+  </div>
+
+  <!-- B · WEERSPIEGELING -->
+  <div class="mod" id="modB">
+    <div class="modhead" data-mod="B"><div class="toggle"></div><span class="mid">B</span><span class="mdot">&#183;</span><span class="mid">WEERSPIEGELING</span></div>
+    <div class="modbody">
+      <div class="check on" id="ckWater"><div class="box"></div>WATER BAND</div>
+      <div class="row"><label class="name">Ripple</label><span class="val" id="ampV">10</span><input type="range" id="amp" min="0" max="26" step="0.5" value="10"></div>
+      <div class="row"><label class="name">Wavelength</label><span class="val" id="waveV">14</span><input type="range" id="wave" min="6" max="40" step="1" value="14"></div>
+      <div class="row"><label class="name">Compress</label><span class="val" id="compressV">0.94</span><input type="range" id="compress" min="0.75" max="1" step="0.01" value="0.94"></div>
+      <div class="row"><label class="name">Depth fade</label><span class="val" id="fadeV">0.55</span><input type="range" id="fade" min="0" max="1" step="0.05" value="0.55"></div>
+      <div class="check on" id="ckGold"><div class="box"></div>GOLD PATH</div>
+      <div class="row"><label class="name">Path strength</label><span class="val" id="goldamtV">0.70</span><input type="range" id="goldamt" min="0" max="1" step="0.05" value="0.7"></div>
+      <div class="note">The water band doubles everything above it &#8212; darkened, tinted, displaced row by row &#8212; and occasionally flips into the sky instead. Ripple settings also drive ripple-treated panels. Gold path peaks at golden hour and dies with the light.</div>
+    </div>
+  </div>
+
+  <!-- C · LICHT -->
+  <div class="mod" id="modC">
+    <div class="modhead" data-mod="C"><div class="toggle"></div><span class="mid">C</span><span class="mdot">&#183;</span><span class="mid">LICHT</span></div>
+    <div class="modbody">
+      <div class="row"><label class="name">Hour</label><span class="val" id="hourV">19:00</span><input type="range" id="hour" min="0" max="1" step="0.01" value="0.55"></div>
+      <div class="row"><label class="name">Halation</label><span class="val" id="halationV">0.50</span><input type="range" id="halation" min="0" max="1" step="0.05" value="0.5"></div>
+      <div class="row"><label class="name">Bokeh</label><span class="val" id="bokehV">0.45</span><input type="range" id="bokeh" min="0" max="1" step="0.05" value="0.45"></div>
+      <div class="row"><label class="name">Vignette</label><span class="val" id="vigV">0.50</span><input type="range" id="vig" min="0" max="1" step="0.05" value="0.5"></div>
+      <button class="smallbtn" id="btnLight">&#x21bb;&nbsp; NEW LIGHT</button>
+      <div class="note">One slider is the whole evening: 14:00 bright and milk-blue, 20:00 gouden uur, 23:00 candlelit. Halation blooms the highlights; bokeh only wakes up after dark.</div>
+    </div>
+  </div>
+
+  <!-- D · PALET -->
+  <div class="mod" id="modD">
+    <div class="modhead" data-mod="D"><div class="toggle"></div><span class="mid">D</span><span class="mdot">&#183;</span><span class="mid">PALET</span></div>
+    <div class="modbody">
+      <div class="row"><label class="name">Palette</label>
+        <select id="palette">
+          <option value="GOUDENUUR">GOUDEN UUR</option>
+          <option value="TERRAS">TERRAS</option>
+          <option value="MELK">MELK</option>
+          <option value="KAARS">KAARS</option>
+          <option value="BLOEM">BLOEM</option>
+        </select></div>
+      <div class="row"><label class="name">Grade</label><span class="val" id="gradeV">0.65</span><input type="range" id="grade" min="0" max="1" step="0.05" value="0.65"></div>
+      <div class="row"><label class="name">Milk</label><span class="val" id="milkV">0.22</span><input type="range" id="milk" min="0" max="0.6" step="0.02" value="0.22"></div>
+      <div class="row"><label class="name">Saturation</label><span class="val" id="satV">1.12</span><input type="range" id="sat" min="0.6" max="1.8" step="0.02" value="1.12"></div>
+      <div class="row"><label class="name">Grain</label><span class="val" id="grainV">0.14</span><input type="range" id="grain" min="0" max="0.5" step="0.02" value="0.14"></div>
+      <div class="note">Tritone gradient map: shadows sink green-black, mids warm to the palette, highlights go cream. Milk lifts the blacks &#8212; warm film left in a bag all summer.</div>
+    </div>
+  </div>
+
+  <!-- F · KLINKERS -->
+  <div class="mod" id="modF">
+    <div class="modhead" data-mod="F"><div class="toggle"></div><span class="mid">F</span><span class="mdot">&#183;</span><span class="mid">KLINKERS</span></div>
+    <div class="modbody">
+      <div class="row"><label class="name">Blocks</label><span class="val" id="blocksV">2</span><input type="range" id="blocks" min="0" max="4" step="1" value="2"></div>
+      <div class="row"><label class="name">Scale</label><span class="val" id="scaleV">16</span><input type="range" id="scale" min="8" max="30" step="1" value="16"></div>
+      <div class="row"><label class="name">Raster</label><span class="val" id="rasterV">0.25</span><input type="range" id="raster" min="0" max="1" step="0.05" value="0.25"></div>
+      <div class="row"><label class="name">Inkt</label><span class="val" id="inktV">0.55</span><input type="range" id="inkt" min="0" max="1" step="0.05" value="0.55"></div>
+      <div class="check on" id="ckFade"><div class="box"></div>FADE OUT</div>
+      <div class="note">Herringbone paving blocks over the negative space. RASTER slides the bricks from drawn strokes through broken dashes into composite dots; FADE lets each block dissolve across its own length. Reseated by RESHUFFLE.</div>
+    </div>
+  </div>
+
+  <!-- E · DRUKWERK -->
+  <div class="mod" id="modE">
+    <div class="modhead" data-mod="E"><div class="toggle"></div><span class="mid">E</span><span class="mdot">&#183;</span><span class="mid">DRUKWERK</span></div>
+    <div class="modbody">
+      <div class="check" id="ckTitle"><div class="box"></div>TITLE</div>
+      <div class="check" id="ckSub"><div class="box"></div>SUBTITLE</div>
+      <div class="check" id="ckMenu"><div class="box"></div>MENUKAART</div>
+      <div class="check on" id="ckRule"><div class="box"></div>WATER RULE</div>
+      <div class="row"><label class="name">Title</label><input type="text" id="title" value="nazomer"></div>
+      <div class="row"><label class="name">Subtitle</label><input type="text" id="subtitle" value="de avond duurt"></div>
+      <div class="row"><label class="name">Menukaart</label><input type="text" id="menu" value="oesters:3.5, asperges:14, huiswijn:5"></div>
+      <div class="note">Lowercase grid typography, dot leaders on the menu lines. Everything here defaults off &#8212; the light has to carry the poster on its own.</div>
+    </div>
+  </div>
+</aside>
+
+<div id="stagewrap"><div id="stage"></div></div>
+</main>
+
+<script>
+'use strict';
+/* ================= PRNG / HELPERS ================= */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function newSeed(){return Math.floor(Math.random()*9e8)+1e8;}
+function pick(rnd,arr){return arr[Math.floor(rnd()*arr.length)];}
+function pickWeighted(rnd,pairs){let t=0;for(const p of pairs)t+=p[1];let r=rnd()*t;
+  for(const p of pairs){if(r<p[1])return p[0];r-=p[1];}return pairs[pairs.length-1][0];}
+function clamp01(v){return v<0?0:(v>1?1:v);}
+function lerp(a,b,t){return a+(b-a)*t;}
+function smoothstep(a,b,x){const t=clamp01((x-a)/(b-a));return t*t*(3-2*t);}
+function hex2rgb(h){h=h.replace('#','');if(h.length===3)h=h.split('').map(c=>c+c).join('');return[parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];}
+function mixRGB(a,b,t){return[lerp(a[0],b[0],t),lerp(a[1],b[1],t),lerp(a[2],b[2],t)];}
+function rgbCSS(c,a){return'rgba('+Math.round(c[0])+','+Math.round(c[1])+','+Math.round(c[2])+','+(a===undefined?1:a.toFixed(3))+')';}
+function rgbHex(c){return'#'+[0,1,2].map(i=>('0'+Math.round(Math.max(0,Math.min(255,c[i]))).toString(16)).slice(-2)).join('');}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+/* ================= PALETTES =================
+   fieldD/horizD: daylight field gradient (top / at the water line)
+   fieldN/horizN: night versions
+   sh/mid/hi: tritone grade anchors  ·  water: canal  ·  bokeh: lights  ·  ink: furniture */
+const PALETTES={
+  GOUDENUUR:{fieldD:'#f2e3c8',horizD:'#f6c98a',fieldN:'#221b12',horizN:'#5c3a1e',
+             sh:'#20301f',mid:'#c98d52',hi:'#f8ecd4',water:'#16241c',bokeh:'#ffce7a',ink:'#f6ecd6',accents:['#d98a3e','#8a9b6e','#b4553f']},
+  TERRAS:   {fieldD:'#f5dfda',horizD:'#f0b39e',fieldN:'#2a161c',horizN:'#6b2f3a',
+             sh:'#3a1f2e',mid:'#d98a7e',hi:'#fbeee6',water:'#241318',bokeh:'#ffb18f',ink:'#faece4',accents:['#c96f6f','#8f4f5e','#d9a08a']},
+  MELK:     {fieldD:'#e9eef0',horizD:'#f4ead8',fieldN:'#1c2226',horizN:'#4a4436',
+             sh:'#2c3a40',mid:'#b9c2b8',hi:'#f8f6ee',water:'#1d2a2e',bokeh:'#f5e2b8',ink:'#f4f2ea',accents:['#7f95a0','#b9a97f','#5e6e62']},
+  KAARS:    {fieldD:'#241b14',horizD:'#503219',fieldN:'#120d08',horizN:'#3a2410',
+             sh:'#120c08',mid:'#8a5a2e',hi:'#f2d9a8',water:'#0e0a08',bokeh:'#ffc46a',ink:'#f0dcb4',accents:['#a06a2e','#6e4a22','#c99a4e']},
+  BLOEM:    {fieldD:'#f2ecdf',horizD:'#eecfd8',fieldN:'#221a20',horizN:'#59324a',
+             sh:'#2e2438',mid:'#c886a0',hi:'#f9f0e2',water:'#1e1826',bokeh:'#f7a8c0',ink:'#f8f0e4',accents:['#b06a8f','#7a5e9e','#d98aa0']}
+};
+
+/* ================= STATE ================= */
+let state={
+  seed:newSeed(), gridSeed:0, overlaySeed:0,
+  frame:'1080x1350',
+  dispfont:"'Helvetica Neue',Helvetica,Arial,sans-serif",
+  A:{on:true, layout:'AUTO', count:6, vary:0.55, stagger:0.3, gap:10, water:0.62, droom:0.35, outline:false},
+  B:{on:true, water:true, amp:10, wave:14, compress:0.94, fade:0.55, gold:true, goldamt:0.7},
+  C:{on:true, hour:0.55, halation:0.5, bokeh:0.45, vig:0.5},
+  D:{on:true, palette:'GOUDENUUR', grade:0.65, milk:0.22, sat:1.12, grain:0.14},
+  F:{on:true, blocks:2, scale:16, raster:0.25, inkt:0.55, fade:true},
+  E:{on:true, showTitle:false, showSub:false, showMenu:false, rule:true,
+     title:'nazomer', subtitle:'de avond duurt', menu:'oesters:3.5, asperges:14, huiswijn:5'}
+};
+state.gridSeed=state.seed^0xA5F1; state.overlaySeed=state.seed^0x3C7B;
+
+/* ================= HISTORY ================= */
+let history=[],future=[];
+function snapshot(){return JSON.stringify(state);}
+function commit(){history.push(snapshot());if(history.length>60)history.shift();future=[];updateHistBtns();}
+function updateHistBtns(){document.getElementById('btnUndo').disabled=history.length===0;document.getElementById('btnRedo').disabled=future.length===0;}
+function restore(json){const s=JSON.parse(json);for(const k in s){if(s[k]&&typeof s[k]==='object'&&state[k]&&typeof state[k]==='object')Object.assign(state[k],s[k]);else state[k]=s[k];}syncUI();render();}
+document.getElementById('btnUndo').onclick=()=>{if(!history.length)return;future.push(snapshot());restore(history.pop());updateHistBtns();};
+document.getElementById('btnRedo').onclick=()=>{if(!future.length)return;history.push(snapshot());restore(future.pop());updateHistBtns();};
+document.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();
+    if(e.shiftKey)document.getElementById('btnRedo').click();else document.getElementById('btnUndo').click();}
+});
+
+/* ================= SOURCE IMAGE ================= */
+const src={canvas:document.createElement('canvas'),w:0,h:0,name:'DEFAULT-ZOMERAVOND'};
+
+function makeDefaultImage(){
+  const W=1400,H=1000,c=src.canvas;c.width=W;c.height=H;src.w=W;src.h=H;
+  const ctx=c.getContext('2d');const r=mulberry32(20260710);
+  const horizon=H*0.68;
+  // long-evening sky
+  const g=ctx.createLinearGradient(0,0,0,horizon);
+  g.addColorStop(0,'#e8d9c0');g.addColorStop(0.55,'#f3c48e');g.addColorStop(1,'#eb9a66');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,horizon);
+  // low sun + haze
+  const sx=W*0.6,sy=horizon-H*0.06;
+  const halo=ctx.createRadialGradient(sx,sy,8,sx,sy,320);
+  halo.addColorStop(0,'rgba(255,240,200,0.95)');halo.addColorStop(0.4,'rgba(255,200,130,0.4)');halo.addColorStop(1,'rgba(255,180,110,0)');
+  ctx.fillStyle=halo;ctx.fillRect(sx-320,sy-320,640,640);
+  ctx.fillStyle='#fff0cc';ctx.beginPath();ctx.arc(sx,sy,54,0,7);ctx.fill();
+  // narrow parcel silhouettes shoulder to shoulder
+  const tones=['#3a2a22','#2c2018','#43302a','#261c15','#372a1e'];
+  for(let x=0;x<W;){
+    const bw=58+r()*110, bh=H*(0.16+r()*r()*0.34);
+    ctx.fillStyle=pick(r,tones);
+    ctx.fillRect(x,horizon-bh,bw,bh);
+    if(r()<0.5){const setb=8+r()*16;ctx.fillRect(x+setb,horizon-bh-14-r()*30,bw-setb*2,20+r()*30);}
+    const cols=Math.max(1,Math.floor(bw/24)),rows=Math.max(2,Math.floor(bh/34));
+    for(let i=0;i<cols;i++)for(let j=0;j<rows;j++){
+      if(r()<0.34){ctx.fillStyle=pick(r,['#ffd98a','#ffb45e','#ffe7b0']);
+        ctx.fillRect(x+7+i*24,horizon-bh+10+j*34,9,14);}
+    }
+    x+=bw+Math.floor(r()*8);
+  }
+  // strung lights across the gap
+  ctx.lineWidth=1.4;ctx.strokeStyle='rgba(30,18,10,0.65)';
+  for(let k=0;k<2;k++){
+    const y0=H*(0.30+k*0.1+r()*0.04);
+    ctx.beginPath();ctx.moveTo(0,y0);ctx.quadraticCurveTo(W*0.5,y0+90+r()*50,W,y0-20+r()*50);ctx.stroke();
+    for(let t=0.03;t<1;t+=0.045){
+      const bx=lerp(0,W,t),sag=(4*(t-t*t))*(90+50*0.5);
+      const by=lerp(y0,y0-20+25,t)+sag;
+      const gl=ctx.createRadialGradient(bx,by,0,bx,by,9);
+      gl.addColorStop(0,'rgba(255,214,140,0.95)');gl.addColorStop(1,'rgba(255,190,110,0)');
+      ctx.fillStyle=gl;ctx.fillRect(bx-9,by-9,18,18);
+    }
+  }
+  // street, long shadows, figures
+  const sg=ctx.createLinearGradient(0,horizon,0,H);
+  sg.addColorStop(0,'#4a3226');sg.addColorStop(1,'#1e140e');
+  ctx.fillStyle=sg;ctx.fillRect(0,horizon,W,H-horizon);
+  for(let f=0;f<4;f++){
+    const fx=W*(0.12+r()*0.7),fy=horizon+30+r()*(H-horizon-70),sc=0.8+r()*0.7;
+    ctx.fillStyle='rgba(20,12,8,0.5)';
+    ctx.save();ctx.translate(fx,fy+34*sc);ctx.scale(1,0.22);
+    ctx.beginPath();ctx.ellipse((fx<sx?-1:1)*70*sc,0,90*sc,26*sc,0,0,7);ctx.fill();ctx.restore();
+    ctx.fillStyle='#1c1210';
+    ctx.beginPath();ctx.ellipse(fx,fy-26*sc,7*sc,8*sc,0,0,7);ctx.fill();
+    ctx.beginPath();ctx.moveTo(fx-8*sc,fy+34*sc);ctx.quadraticCurveTo(fx-9*sc,fy-14*sc,fx,fy-16*sc);
+    ctx.quadraticCurveTo(fx+9*sc,fy-14*sc,fx+8*sc,fy+34*sc);ctx.closePath();ctx.fill();
+  }
+}
+
+function loadUserImage(file){
+  const rd=new FileReader();
+  rd.onload=()=>{const img=new Image();
+    img.onload=()=>{
+      const maxD=1400,sc=Math.min(1,maxD/Math.max(img.width,img.height));
+      src.w=Math.round(img.width*sc);src.h=Math.round(img.height*sc);
+      src.canvas.width=src.w;src.canvas.height=src.h;
+      src.canvas.getContext('2d').drawImage(img,0,0,src.w,src.h);
+      src.name=file.name.toUpperCase();
+      document.getElementById('srcname').textContent='SOURCE: '+src.name;
+      commit();render();
+    };
+    img.src=rd.result;};
+  rd.readAsDataURL(file);
+}
+const dropEl=document.getElementById('drop');
+dropEl.onclick=()=>document.getElementById('file').click();
+document.getElementById('file').onchange=e=>{if(e.target.files[0])loadUserImage(e.target.files[0]);};
+dropEl.ondragover=e=>{e.preventDefault();};
+dropEl.ondrop=e=>{e.preventDefault();if(e.dataTransfer.files[0])loadUserImage(e.dataTransfer.files[0]);};
+
+/* ================= LAYOUT (poster coords) ================= */
+/* Returns {panels:[{x,y,w,h,treat,crop,expo,warm,flip}], wl, waterOn, waterTop}
+   Archetypes: GEVELRIJ strip row · PANELEN off-grid blocks · VLAK one placed panel · SPLIT pair.
+   Treatments: PHOTO / RIPPLE (water takes over the panel) / GLOW (dream blur) / FIELD (dark negative space). */
+function rollTreat(rnd,droom){
+  const r=rnd();
+  const pT=0.55*droom;               // total probability of a treated panel
+  if(r<1-pT)return'PHOTO';
+  const r2=(r-(1-pT))/pT;
+  if(r2<0.42)return'RIPPLE';
+  if(r2<0.80)return'GLOW';
+  return'FIELD';
+}
+function computeLayout(W,H){
+  const A=state.A;const rnd=mulberry32(state.gridSeed);
+  const k=W/1080;
+  const waterOn=state.B.on&&state.B.water;
+  const waterTop=waterOn&&rnd()<0.15;
+  const wl=Math.round(H*A.water);
+
+  let arch=A.on?A.layout:'VLAK';
+  if(arch==='AUTO')arch=pickWeighted(rnd,[['GEVELRIJ',0.30],['PANELEN',0.30],['VLAK',0.22],['SPLIT',0.18]]);
+
+  // off-grid margins — generous seeded whitespace, sometimes one big side band
+  let mL=0,mR=0,mT=0,mB=0;
+  if(A.on&&rnd()<0.5){
+    mL=W*rnd()*0.12;mR=W*rnd()*0.12;mT=H*rnd()*0.09;mB=H*rnd()*0.09;
+    if(rnd()<0.3){if(rnd()<0.5)mL=W*(0.12+rnd()*0.18);else mR=W*(0.12+rnd()*0.18);}
+  }
+  const IX=mL,IW=W-mL-mR;
+  const topLimit=(waterOn&&waterTop)?wl:mT;
+  const bottomLimit=(waterOn&&!waterTop)?wl:H-mB;
+  const IH=Math.max(H*0.1,bottomLimit-topLimit);
+
+  const panels=[];
+  const gap=A.on?A.gap*k:0;
+
+  if(arch==='GEVELRIJ'){
+    const n=A.on?A.count:1;
+    const weights=[];let tw=0;
+    for(let i=0;i<n;i++){const w=Math.max(0.25,1+(rnd()*2-1)*A.vary*0.8);weights.push(w);tw+=w;}
+    const avail=IW-gap*(n+1);
+    const maxH=IH-(A.on?H*0.04:0);
+    let x=IX+gap;
+    for(let i=0;i<n;i++){
+      const w=avail*weights[i]/tw;
+      const hh=A.on?maxH*(1-A.stagger*rnd()):IH;
+      const y=waterTop?topLimit:bottomLimit-hh;   // hang from the sky-water, or stand on the canal
+      panels.push({x:x,y:y,w:w,h:hh});x+=w+gap;
+    }
+  }else if(arch==='PANELEN'){
+    const n=2+Math.floor(rnd()*3);
+    const weights=[];let tw=0;
+    for(let i=0;i<n;i++){const w=Math.max(0.3,1+(rnd()*2-1)*0.9);weights.push(w);tw+=w;}
+    const g=gap*(1+rnd()*2);
+    const avail=IW-g*(n+1);
+    let x=IX+g;
+    for(let i=0;i<n;i++){
+      const w=avail*weights[i]/tw;
+      const hh=IH*(0.55+rnd()*0.45);
+      const y=topLimit+(IH-hh)*rnd();             // float off-grid
+      panels.push({x:x,y:y,w:w,h:hh});x+=w+g;
+    }
+  }else if(arch==='SPLIT'){
+    const cut=0.35+rnd()*0.3,g=Math.max(gap,2*k);
+    panels.push({x:IX,y:topLimit,w:IW*cut-g/2,h:IH});
+    panels.push({x:IX+IW*cut+g/2,y:topLimit,w:IW*(1-cut)-g/2,h:IH});
+  }else{ // VLAK
+    panels.push({x:IX,y:topLimit,w:IW,h:IH});
+  }
+
+  // treatments
+  const droom=A.on?A.droom:0;
+  for(const p of panels){p.treat=rollTreat(rnd,droom);p.flip=rnd()<0.6;
+    p.expo=0.92+rnd()*0.16;p.warm=(rnd()-0.5)*0.10;}
+  if(arch==='VLAK')panels[0].treat='PHOTO';
+  if(arch==='SPLIT'){panels[0].treat='PHOTO';
+    if(panels[1].treat==='PHOTO'||panels[1].treat==='FIELD')panels[1].treat=rnd()<0.5?'RIPPLE':'GLOW';}
+  if(panels.length<3)for(const p of panels)if(p.treat==='FIELD')p.treat='RIPPLE';
+  if(!panels.some(p=>p.treat==='PHOTO')){let big=panels[0];
+    for(const p of panels)if(p.w*p.h>big.w*big.h)big=p;big.treat='PHOTO';}
+
+  // crops
+  for(const p of panels){
+    if(p.treat==='FIELD')continue;
+    const ar=p.w/p.h;
+    let ch=src.h*(0.5+rnd()*0.48),cw=ch*ar;
+    if(cw>src.w){cw=src.w*(0.6+rnd()*0.4);ch=cw/ar;
+      if(ch>src.h){ch=src.h;cw=Math.min(src.w,ch*ar);}}
+    p.crop={cx:(src.w-cw)*rnd(),cy:(src.h-ch)*(rnd()*rnd()*0.85),cw:cw,ch:ch};
+  }
+  return{panels:panels,wl:wl,waterOn:waterOn,waterTop:waterTop,arch:arch};
+}
+
+/* ================= GRADE ================= */
+function buildTriLUT(sh,mid,hi){
+  const lut=new Float32Array(256*3);
+  for(let i=0;i<256;i++){
+    const L=i/255;let r,g,b;
+    if(L<0.5){const t=L*2;r=lerp(sh[0],mid[0],t);g=lerp(sh[1],mid[1],t);b=lerp(sh[2],mid[2],t);}
+    else{const t=(L-0.5)*2;r=lerp(mid[0],hi[0],t);g=lerp(mid[1],hi[1],t);b=lerp(mid[2],hi[2],t);}
+    lut[i*3]=r;lut[i*3+1]=g;lut[i*3+2]=b;
+  }
+  return lut;
+}
+function gradeRegion(ctx,x,y,w,h,lut,grade,sat,milk,hiRGB,expo,warm,postExpo){
+  x=Math.round(x);y=Math.round(y);w=Math.round(w);h=Math.round(h);
+  if(w<1||h<1)return;
+  const id=ctx.getImageData(x,y,w,h);const d=id.data;
+  const mr=milk*hiRGB[0]*0.30,mg=milk*hiRGB[1]*0.30,mb=milk*hiRGB[2]*0.30;
+  for(let i=0;i<d.length;i+=4){
+    let r=d[i]*expo*(1+warm),g=d[i+1]*expo,b=d[i+2]*expo*(1-warm);
+    if(r>255)r=255;if(g>255)g=255;if(b>255)b=255;
+    const L=(0.2126*r+0.7152*g+0.0722*b)|0;const li=L*3;
+    r+= (lut[li]-r)*grade; g+=(lut[li+1]-g)*grade; b+=(lut[li+2]-b)*grade;
+    const av=(r+g+b)/3;
+    r=av+(r-av)*sat; g=av+(g-av)*sat; b=av+(b-av)*sat;
+    r+=mr*(1-r/255); g+=mg*(1-g/255); b+=mb*(1-b/255);
+    r*=postExpo;g*=postExpo;b*=postExpo;
+    d[i]=r<0?0:r>255?255:r; d[i+1]=g<0?0:g>255?255:g; d[i+2]=b<0?0:b>255?255:b;
+  }
+  ctx.putImageData(id,x,y);
+}
+
+/* ================= HALATION ================= */
+function halationPass(ctx,Wk,wlYk,amount,thresh){
+  if(amount<=0.01||wlYk<8)return;
+  const smW=Math.max(4,Math.round(Wk/6)),smH=Math.max(4,Math.round(wlYk/6));
+  const m=document.createElement('canvas');m.width=smW;m.height=smH;
+  const mc=m.getContext('2d');
+  mc.drawImage(ctx.canvas,0,0,Wk,wlYk,0,0,smW,smH);
+  const id=mc.getImageData(0,0,smW,smH);const dd=id.data;
+  for(let i=0;i<dd.length;i+=4){
+    const l=0.2126*dd[i]+0.7152*dd[i+1]+0.0722*dd[i+2];
+    const kk=clamp01((l-thresh)/(255-thresh));
+    dd[i]*=kk;dd[i+1]*=kk;dd[i+2]*=kk;
+  }
+  mc.putImageData(id,0,0);
+  const m2=document.createElement('canvas');m2.width=Math.max(2,smW>>1);m2.height=Math.max(2,smH>>1);
+  const mc2=m2.getContext('2d');mc2.drawImage(m,0,0,m2.width,m2.height);
+  mc.clearRect(0,0,smW,smH);mc.drawImage(m2,0,0,smW,smH);
+  ctx.save();ctx.beginPath();ctx.rect(0,0,Wk,wlYk);ctx.clip();
+  ctx.globalAlpha=Math.min(1,amount);ctx.globalCompositeOperation='lighter';
+  ctx.drawImage(m,0,0,smW,smH,0,0,Wk,wlYk);
+  ctx.restore();
+}
+
+/* ================= WATER / RIPPLE / GLOW ================= */
+function reflectionBand(ctx,Wk,Hk,wlK,dir,water,goldI,gxK,gwK,ph1,ph2){
+  const B=state.B;
+  const bandH=dir==='down'?Hk-wlK:wlK;
+  if(bandH<2)return;
+  const img=ctx.getImageData(0,0,Wk,Hk);const d=img.data;
+  const wr=water[0],wg=water[1],wb=water[2];
+  const inv2gw=1/(2*gwK*gwK);
+  const y0=dir==='down'?wlK:0,y1=dir==='down'?Hk:wlK;
+  for(let y=y0;y<y1;y++){
+    const dist=dir==='down'?y-wlK:wlK-1-y;
+    const depth=dist/bandH;
+    let srcY=dir==='down'?Math.round(wlK-1-dist*B.compress):Math.round(wlK+dist*B.compress);
+    if(srcY<0||srcY>=Hk)srcY=-1;
+    const rowOff=B.amp*Math.pow(depth,0.7)*(Math.sin(y/B.wave*6.2832+ph1)+0.5*Math.sin(y/(B.wave*0.37)*6.2832+ph2));
+    const mixW=clamp01(0.16+depth*(0.3+0.7*B.fade));
+    const shimmer=0.35+0.65*(0.5+0.5*Math.sin(y/(B.wave*0.9)*6.2832+ph1*1.7));
+    const gRow=dir==='down'?goldI*shimmer*150*(1-depth*0.35):0;
+    for(let x=0;x<Wk;x++){
+      let r,g,b;
+      if(srcY>=0){
+        let sx=Math.round(x-rowOff);if(sx<0)sx=0;else if(sx>=Wk)sx=Wk-1;
+        const si=(srcY*Wk+sx)*4;r=d[si];g=d[si+1];b=d[si+2];
+      }else{r=wr;g=wg;b=wb;}
+      r+=(wr-r)*mixW;g+=(wg-g)*mixW;b+=(wb-b)*mixW;
+      if(gRow>0.5){
+        const dx=x-gxK;const gp=gRow*Math.exp(-dx*dx*inv2gw);
+        r+=gp;g+=gp*0.72;b+=gp*0.35;
+        if(r>255)r=255;if(g>255)g=255;if(b>255)b=255;
+      }
+      const di=(y*Wk+x)*4;d[di]=r;d[di+1]=g;d[di+2]=b;d[di+3]=255;
+    }
+  }
+  ctx.putImageData(img,0,0);
+}
+
+/* water takes over a single panel: per-row sine displacement + tint on the panel's own pixels */
+function rippleRegion(ctx,x,y,w,h,water,ph1,ph2){
+  x=Math.round(x);y=Math.round(y);w=Math.round(w);h=Math.round(h);
+  if(w<2||h<2)return;
+  const B=state.B;
+  const img=ctx.getImageData(x,y,w,h);const d=img.data;
+  const srcCopy=new Uint8ClampedArray(d);
+  const wr=water[0],wg=water[1],wb=water[2];
+  const amp=Math.max(2,B.amp*0.55);
+  const wv=B.wave*1.8;
+  for(let yy=0;yy<h;yy++){
+    const depth=yy/h;
+    const env=smoothstep(0,0.18,depth);                 // ease in from the panel top
+    const rowOff=amp*env*(0.4+0.6*depth)*(Math.sin(yy/wv*6.2832+ph1)+0.4*Math.sin(yy/(wv*0.41)*6.2832+ph2));
+    const mixW=clamp01(0.22+depth*0.45);
+    for(let xx=0;xx<w;xx++){
+      let sx=Math.round(xx-rowOff);if(sx<0)sx=0;else if(sx>=w)sx=w-1;
+      const si=(yy*w+sx)*4,di=(yy*w+xx)*4;
+      let r=srcCopy[si],g=srcCopy[si+1],b=srcCopy[si+2];
+      r+=(wr-r)*mixW;g+=(wg-g)*mixW;b+=(wb-b)*mixW;
+      d[di]=r;d[di+1]=g;d[di+2]=b;d[di+3]=255;
+    }
+  }
+  ctx.putImageData(img,x,y);
+}
+
+/* dream panel: the panel's own content, softened into a long-exposure blur */
+function glowRegion(ctx,x,y,w,h){
+  x=Math.round(x);y=Math.round(y);w=Math.round(w);h=Math.round(h);
+  if(w<4||h<4)return;
+  const m=document.createElement('canvas');
+  m.width=Math.max(2,Math.round(w/10));m.height=Math.max(2,Math.round(h/10));
+  const mc=m.getContext('2d');
+  mc.drawImage(ctx.canvas,x,y,w,h,0,0,m.width,m.height);
+  const m2=document.createElement('canvas');m2.width=Math.max(2,m.width>>1);m2.height=Math.max(2,m.height>>1);
+  m2.getContext('2d').drawImage(m,0,0,m2.width,m2.height);
+  mc.clearRect(0,0,m.width,m.height);mc.drawImage(m2,0,0,m.width,m.height);
+  ctx.save();ctx.beginPath();ctx.rect(x,y,w,h);ctx.clip();
+  ctx.drawImage(m,0,0,m.width,m.height,x,y,w,h);
+  ctx.globalCompositeOperation='lighter';ctx.globalAlpha=0.18;
+  ctx.drawImage(m,0,0,m.width,m.height,x,y,w,h);
+  ctx.restore();
+}
+
+/* ================= COMPOSITE ================= */
+const comp=document.createElement('canvas');
+function buildComposite(W,H,pal,layout){
+  const C=state.C,D=state.D;
+  const hour=C.on?C.hour:0.3;
+  const bell=Math.exp(-Math.pow((hour-0.6)/0.30,2));
+  const s=Math.min(1,1100/W);
+  const Wk=Math.round(W*s),Hk=Math.round(H*s);
+  comp.width=Wk;comp.height=Hk;
+  const ctx=comp.getContext('2d');
+  const wlK=Math.round(layout.wl*s);
+  const anchorK=layout.waterOn?wlK:Math.round(Hk*0.8);   // glow anchor when there is no water
+
+  // hour-adjusted palette pieces
+  const fieldTop=mixRGB(hex2rgb(pal.fieldD),hex2rgb(pal.fieldN),smoothstep(0.45,1,hour));
+  const horiz=mixRGB(hex2rgb(pal.horizD),hex2rgb(pal.horizN),smoothstep(0.55,1,hour));
+  const water=mixRGB(hex2rgb(pal.water),[4,6,8],hour*0.3);
+  let sh=hex2rgb(pal.sh),mid=hex2rgb(pal.mid),hi=hex2rgb(pal.hi);
+  sh=mixRGB(sh,hex2rgb(pal.water),hour*0.45);
+  mid=[mid[0]*(1+0.10*hour),mid[1]*(1+0.02*hour),mid[2]*(1-0.12*hour)];
+  hi=[hi[0]*(1+0.06*hour),hi[1],hi[2]*(1-0.10*hour)];
+  const lut=buildTriLUT(sh,mid,hi);
+
+  // light seeds (sun glow + gold path + ripple phases)
+  const lr=mulberry32(state.overlaySeed);
+  const gx=W*(0.28+lr()*0.44),ph1=lr()*6.2832,ph2=lr()*6.2832,gwFrac=0.035+lr()*0.05;
+
+  // field — gradient toward the light anchor
+  const fg=ctx.createLinearGradient(0,0,0,Math.max(anchorK,1));
+  fg.addColorStop(0,rgbCSS(fieldTop));fg.addColorStop(1,rgbCSS(horiz));
+  ctx.fillStyle=fg;ctx.fillRect(0,0,Wk,Hk);
+  const glowA=(0.55*bell+0.08)*(C.on?1:0);
+  if(glowA>0.02){
+    const rg=ctx.createRadialGradient(gx*s,anchorK,0,gx*s,anchorK,Wk*0.55);
+    rg.addColorStop(0,rgbCSS([Math.min(255,horiz[0]*1.15+30),horiz[1]*1.05+10,horiz[2]],glowA));
+    rg.addColorStop(1,rgbCSS(horiz,0));
+    ctx.fillStyle=rg;ctx.fillRect(0,0,Wk,Hk);
+  }
+
+  // panels
+  const expoG=1-0.10*hour;
+  const postExpo=1-0.30*smoothstep(0.55,1,hour);
+  const fieldDark=mixRGB(mixRGB(hex2rgb(pal.sh),water,0.5),[8,8,8],hour*0.25);
+  for(const p of layout.panels){
+    const xk=Math.round(p.x*s),yk=Math.round(p.y*s);
+    const wk=Math.round((p.x+p.w)*s)-xk,hk=Math.round((p.y+p.h)*s)-yk;
+    if(wk<1||hk<1)continue;
+    if(p.treat==='FIELD'){
+      const pg=ctx.createLinearGradient(0,yk,0,yk+hk);
+      pg.addColorStop(0,rgbCSS(fieldDark));pg.addColorStop(1,rgbCSS(mixRGB(fieldDark,[0,0,0],0.35)));
+      ctx.fillStyle=pg;ctx.fillRect(xk,yk,wk,hk);
+      continue;
+    }
+    if(p.treat==='RIPPLE'&&p.flip){
+      ctx.save();ctx.translate(xk,yk+hk);ctx.scale(1,-1);
+      ctx.drawImage(src.canvas,p.crop.cx,p.crop.cy,p.crop.cw,p.crop.ch,0,0,wk,hk);
+      ctx.restore();
+    }else{
+      ctx.drawImage(src.canvas,p.crop.cx,p.crop.cy,p.crop.cw,p.crop.ch,xk,yk,wk,hk);
+    }
+    if(D.on)gradeRegion(ctx,xk,yk,wk,hk,lut,D.grade,D.sat,D.milk,hi,p.expo*expoG,p.warm,postExpo);
+    if(p.treat==='RIPPLE')rippleRegion(ctx,xk,yk,wk,hk,water,ph1+p.x*0.01,ph2);
+    else if(p.treat==='GLOW')glowRegion(ctx,xk,yk,wk,hk);
+  }
+
+  // atmosphere band straddling the light anchor
+  if(C.on&&bell>0.03){
+    const bh=Hk*0.16;
+    const ag=ctx.createLinearGradient(0,anchorK-bh,0,anchorK);
+    ag.addColorStop(0,rgbCSS(horiz,0));ag.addColorStop(1,rgbCSS(horiz,0.16*bell));
+    ctx.save();ctx.beginPath();ctx.rect(0,0,Wk,anchorK);ctx.clip();
+    ctx.fillStyle=ag;ctx.fillRect(0,anchorK-bh,Wk,bh);ctx.restore();
+  }
+
+  // halation over the image zone (above bottom water, or below top water, or everywhere)
+  if(C.on){
+    const amt=C.halation*(0.35+0.65*hour),th=205-45*hour;
+    if(layout.waterOn&&!layout.waterTop)halationPass(ctx,Wk,wlK,amt,th);
+    else halationPass(ctx,Wk,Hk,amt,th);
+  }
+
+  // water band
+  if(layout.waterOn){
+    const goldI=(state.B.gold&&C.on)?state.B.goldamt*Math.max(bell*0.9,0.22*smoothstep(0.78,1,hour)):0;
+    reflectionBand(ctx,Wk,Hk,wlK,layout.waterTop?'up':'down',water,goldI,gx*s,Math.max(6,W*gwFrac*s),ph1,ph2);
+  }
+  return comp.toDataURL('image/jpeg',0.88);
+}
+
+/* ================= FURNITURE (SVG) ================= */
+function fmtHour(h){
+  const mins=Math.round((14+9*h)*4)*15;
+  const hh=Math.floor(mins/60),mm=mins%60;
+  return hh+':'+('0'+mm).slice(-2);
+}
+function parseMenu(str){
+  return String(str).split(',').map(t=>t.trim()).filter(t=>t.length).map(t=>{
+    const i=t.indexOf(':');
+    if(i<0)return{label:t.toLowerCase(),value:''};
+    return{label:t.slice(0,i).trim().toLowerCase(),value:t.slice(i+1).trim().toLowerCase()};
+  });
+}
+/* ================= KLINKERS (herringbone blocks over negative space) ================= */
+function klinkersSVG(W,H,pal,layout){
+  const F=state.F;
+  if(!F.on||F.blocks<1||F.inkt<=0.01)return['',''];
+  const rnd=mulberry32(state.gridSeed^0x77AA);
+  const k=W/1080;
+  // vertical zone the blocks may occupy (stay out of the water)
+  const y0=layout.waterOn&&layout.waterTop?layout.wl:0;
+  const y1=layout.waterOn&&!layout.waterTop?layout.wl:H;
+  const zoneH=y1-y0;
+  if(zoneH<H*0.12)return['',''];
+  const overlapFrac=(bx,by,bw,bh)=>{
+    let ov=0;
+    for(const p of layout.panels){
+      const ix=Math.max(0,Math.min(bx+bw,p.x+p.w)-Math.max(bx,p.x));
+      const iy=Math.max(0,Math.min(by+bh,p.y+p.h)-Math.max(by,p.y));
+      ov+=ix*iy;
+    }
+    return ov/(bw*bh);
+  };
+  let defs='',body='<g stroke-linecap="round" fill="none">';
+  let placed=0;
+  for(let b=0;b<F.blocks;b++){
+    // seek negative space: sample candidates, keep the least covered
+    let best=null;
+    for(let t=0;t<12;t++){
+      const bw=W*(0.10+rnd()*0.24);
+      const bh=Math.min(zoneH*0.9,H*(0.08+rnd()*0.22));
+      const bx=rnd()*(W-bw);
+      const by=y0+rnd()*(zoneH-bh);
+      const of=overlapFrac(bx,by,bw,bh);
+      if(best===null||of<best.of)best={bx:bx,by:by,bw:bw,bh:bh,of:of};
+      if(of<0.12)break;
+    }
+    if(best.of>0.5)continue;               // no room this seed — blocks are occasional, not mandatory
+    placed++;
+    const{bx,by,bw,bh}=best;
+    const col=rnd()<0.55?pal.accents[Math.floor(rnd()*pal.accents.length)]:pal.ink;
+    const gid='kg'+b;
+    // fade gradient along a seeded direction
+    const horiz=rnd()<0.5;
+    const flip=rnd()<0.5;
+    const x1=horiz?(flip?bx+bw:bx):bx, x2=horiz?(flip?bx:bx+bw):bx;
+    const yy1=horiz?by:(flip?by+bh:by), yy2=horiz?by:(flip?by:by+bh);
+    const tailA=F.fade?0.02:1;
+    defs+='<linearGradient id="'+gid+'" gradientUnits="userSpaceOnUse" x1="'+x1.toFixed(1)+'" y1="'+yy1.toFixed(1)+'" x2="'+x2.toFixed(1)+'" y2="'+yy2.toFixed(1)+'">'
+        +'<stop offset="0" stop-color="'+col+'" stop-opacity="1"/>'
+        +'<stop offset="1" stop-color="'+col+'" stop-opacity="'+tailA+'"/></linearGradient>';
+    // optional soft backing tint
+    if(rnd()<0.6){
+      const acc=pal.accents[Math.floor(rnd()*pal.accents.length)];
+      body+='<rect x="'+bx.toFixed(1)+'" y="'+by.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+bh.toFixed(1)+'" fill="'+acc+'" opacity="'+(0.10+rnd()*0.14).toFixed(2)+'" stroke="none"/>';
+    }
+    // herringbone strokes: alternating +-45 columns, batched into two paths
+    const w=F.scale*k;
+    const step=w*0.92;
+    let up='',down='';
+    const nCols=Math.max(1,Math.floor(bw/w));
+    for(let c=0;c<nCols;c++){
+      const cx=bx+c*w;
+      const dir=c%2===0?1:-1;
+      const jitter=(rnd()-0.5)*step*0.4;
+      for(let y=by+jitter;y<by+bh;y+=step){
+        const ya=dir>0?y:y+w;
+        const seg='M'+cx.toFixed(1)+' '+ya.toFixed(1)+'l'+w.toFixed(1)+' '+(dir>0?w:-w).toFixed(1)+' ';
+        if(dir>0)down+=seg;else up+=seg;
+      }
+    }
+    const segL=w*1.414;
+    const r=F.raster;
+    const dash=r<0.03?'':' stroke-dasharray="'+Math.max(0.1,segL*(1-r)).toFixed(1)+' '+(0.4+r*w*0.5).toFixed(1)+'"';
+    const sw=(1.2+ (1-r)*1.2)*Math.max(1,k);
+    body+='<g stroke="url(#'+gid+')" stroke-width="'+sw.toFixed(1)+'" opacity="'+F.inkt.toFixed(2)+'"'+dash
+        +' clip-path="url(#kc'+b+')"><path d="'+down+'"/><path d="'+up+'"/></g>';
+    defs+='<clipPath id="kc'+b+'"><rect x="'+bx.toFixed(1)+'" y="'+by.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+bh.toFixed(1)+'"/></clipPath>';
+  }
+  body+='</g>';
+  if(!placed)return['',''];
+  return[defs,body];
+}
+
+function furnitureSVG(W,H,pal,layout,hour,bokehRamp){
+  const E=state.E,C=state.C;
+  const k=W/1080,ink=pal.ink,font=state.dispfont;
+  let s='';
+
+  // panel outlines
+  if(state.A.on&&state.A.outline){
+    s+='<g fill="none" stroke="'+ink+'" stroke-width="1" opacity="0.25">';
+    for(const p of layout.panels)
+      s+='<rect x="'+p.x.toFixed(1)+'" y="'+p.y.toFixed(1)+'" width="'+p.w.toFixed(1)+'" height="'+p.h.toFixed(1)+'"/>';
+    s+='</g>';
+  }
+
+  // bokeh — terrace lights and candle flames, only after dark
+  if(C.on&&bokehRamp>0.02&&C.bokeh>0.02){
+    const rnd=mulberry32(state.overlaySeed^0x55AA);
+    const n=Math.round(3+C.bokeh*12);
+    s+='<g filter="url(#bok)">';
+    for(let i=0;i<n;i++){
+      const anchor=layout.waterOn?layout.wl:H*0.8;
+      const below=rnd()<0.7;
+      const bx=W*rnd();
+      const by=below?anchor+(H-anchor)*rnd()*0.9:anchor-H*0.14*rnd();
+      const br=(10+rnd()*46)*k;
+      const bo=(0.12+rnd()*0.3)*bokehRamp;
+      s+='<circle cx="'+bx.toFixed(1)+'" cy="'+by.toFixed(1)+'" r="'+br.toFixed(1)+'" fill="'+pal.bokeh+'" opacity="'+bo.toFixed(3)+'"/>';
+    }
+    s+='</g>';
+  }
+
+  // vignette
+  if(C.on){
+    const va=C.vig*(0.12+0.7*hour);
+    if(va>0.02)s+='<rect width="'+W+'" height="'+H+'" fill="url(#vig)" opacity="'+va.toFixed(3)+'"/>';
+  }
+
+  // water rule
+  if(E.on&&E.rule&&layout.waterOn)
+    s+='<line x1="0" y1="'+layout.wl+'" x2="'+W+'" y2="'+layout.wl+'" stroke="'+ink+'" stroke-width="1" opacity="0.3"/>';
+
+  // grain
+  if(state.D.on&&state.D.grain>0.005)
+    s+='<rect width="'+W+'" height="'+H+'" filter="url(#grain)" opacity="'+state.D.grain+'" style="mix-blend-mode:overlay"/>';
+
+  // typography
+  if(E.on){
+    const fs=15*k,lh=fs*1.85;
+    if(E.showMenu&&E.menu.trim().length){
+      const lines=parseMenu(E.menu);
+      if(lines.length){
+        const xR=W-48*k,xL=xR-Math.min(330*k,W*0.34);
+        let y=H-48*k-(lines.length-1)*lh;
+        s+='<g font-family="'+esc(font)+'" font-size="'+fs.toFixed(1)+'" fill="'+ink+'" opacity="0.92">';
+        for(const ln of lines){
+          s+='<text x="'+xL.toFixed(1)+'" y="'+y.toFixed(1)+'">'+esc(ln.label)+'</text>';
+          if(ln.value.length){
+            s+='<text x="'+xR.toFixed(1)+'" y="'+y.toFixed(1)+'" text-anchor="end">'+esc(ln.value)+'</text>';
+            const dS=xL+ln.label.length*fs*0.54+fs*0.6;
+            const dE=xR-ln.value.length*fs*0.56-fs*0.6;
+            if(dE>dS)s+='<line x1="'+dS.toFixed(1)+'" y1="'+(y-fs*0.28).toFixed(1)+'" x2="'+dE.toFixed(1)+'" y2="'+(y-fs*0.28).toFixed(1)+'" stroke="'+ink+'" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="0.1 '+(fs*0.42).toFixed(1)+'" opacity="0.7"/>';
+          }
+          y+=lh;
+        }
+        s+='</g>';
+      }
+    }
+    if(E.showTitle&&E.title.trim().length){
+      const ty=H-(E.showSub?76:52)*k;
+      s+='<text x="'+(48*k).toFixed(1)+'" y="'+ty.toFixed(1)+'" font-family="'+esc(font)+'" font-size="'+(44*k).toFixed(1)+'" fill="'+ink+'" opacity="0.94">'+esc(E.title)+'</text>';
+    }
+    if(E.showSub&&E.subtitle.trim().length){
+      s+='<text x="'+(48*k).toFixed(1)+'" y="'+(H-46*k).toFixed(1)+'" font-family="'+esc(font)+'" font-size="'+(12*k).toFixed(1)+'" letter-spacing="'+(4.5*k).toFixed(1)+'" fill="'+ink+'" opacity="0.72">'+esc(E.subtitle.toUpperCase())+'</text>';
+    }
+  }
+  return s;
+}
+
+/* ================= RENDER ================= */
+function buildSVG(){
+  const dims=state.frame.split('x').map(Number);
+  const W=dims[0],H=dims[1];
+  const pal=PALETTES[state.D.palette];
+  const layout=computeLayout(W,H);
+  const hour=state.C.on?state.C.hour:0.3;
+  const bokehRamp=smoothstep(0.5,0.9,hour);
+  const uri=buildComposite(W,H,pal,layout);
+
+  let defs='';
+  defs+='<filter id="bok" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="'+(7*W/1080).toFixed(1)+'"/></filter>';
+  defs+='<radialGradient id="vig" cx="50%" cy="42%" r="78%"><stop offset="55%" stop-color="'+pal.water+'" stop-opacity="0"/><stop offset="100%" stop-color="'+pal.water+'" stop-opacity="1"/></radialGradient>';
+  if(state.D.on&&state.D.grain>0.005)
+    defs+='<filter id="grain"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="'+(state.seed%9973)+'" stitchTiles="stitch"/><feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0.7 0.7 0.7 0 0"/></filter>';
+
+  const kl=klinkersSVG(W,H,pal,layout);
+  defs+=kl[0];
+  let body='<image x="0" y="0" width="'+W+'" height="'+H+'" preserveAspectRatio="none" xlink:href="'+uri+'"/>';
+  body+=kl[1];
+  body+=furnitureSVG(W,H,pal,layout,hour,bokehRamp);
+
+  return'<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'"><defs>'+defs+'</defs>'+body+'</svg>';
+}
+
+let rafPending=false;
+function render(){
+  if(rafPending)return;rafPending=true;
+  requestAnimationFrame(()=>{rafPending=false;
+    document.getElementById('stage').innerHTML=buildSVG();
+    document.getElementById('seedval').textContent=state.seed;
+  });
+}
+
+/* ================= EXPORT ================= */
+function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000);}
+document.getElementById('btnSVG').onclick=()=>download(new Blob([buildSVG()],{type:'image/svg+xml'}),'nazomer-'+state.seed+'.svg');
+function exportPNG(scale){
+  const dims=state.frame.split('x').map(Number);
+  const W=dims[0],H=dims[1];
+  const svg=buildSVG();
+  const url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml'}));
+  const img=new Image();
+  img.onload=()=>{const c=document.createElement('canvas');c.width=W*scale;c.height=H*scale;
+    c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+    c.toBlob(b=>download(b,'nazomer-'+state.seed+'@'+scale+'x.png'),'image/png');
+    URL.revokeObjectURL(url);};
+  img.onerror=()=>{URL.revokeObjectURL(url);alert('PNG export failed: the SVG did not parse as strict XML.');};
+  img.src=url;
+}
+document.getElementById('btnPNG2').onclick=()=>exportPNG(2);
+document.getElementById('btnPNG4').onclick=()=>exportPNG(4);
+
+/* ================= RANDOMIZE / CHAOS / REROLLS ================= */
+document.getElementById('btnRandom').onclick=()=>{
+  commit();
+  const S=newSeed();const r=mulberry32(S);
+  state.seed=S;state.gridSeed=S^0xA5F1;state.overlaySeed=S^0x3C7B;
+  state.A.count=3+Math.floor(r()*6);
+  state.A.vary=+(0.25+r()*0.6).toFixed(2);
+  state.A.stagger=+(0.1+r()*0.4).toFixed(2);
+  state.A.gap=Math.round(4+r()*20);
+  state.A.water=+(0.5+r()*0.34).toFixed(2);
+  state.A.droom=+(r()<0.5?0.15+r()*0.3:r()*0.9).toFixed(2);
+  state.B.water=r()<0.45;
+  state.B.amp=+(4+r()*14).toFixed(1);
+  state.B.wave=Math.round(9+r()*20);
+  state.B.fade=+(0.3+r()*0.55).toFixed(2);
+  state.C.hour=+(r()).toFixed(2);            // the whole day is in play — every seed a different mood
+  state.C.halation=+(0.25+r()*0.6).toFixed(2);
+  state.C.bokeh=+(0.2+r()*0.6).toFixed(2);
+  state.C.vig=+(0.25+r()*0.55).toFixed(2);
+  if(state.D.on&&r()<0.65)state.D.palette=pick(r,Object.keys(PALETTES));
+  state.D.grade=+(0.4+r()*0.5).toFixed(2);
+  state.D.milk=+(0.08+r()*0.3).toFixed(2);
+  state.D.sat=+(0.95+r()*0.5).toFixed(2);
+  state.F.blocks=r()<0.4?0:1+Math.floor(r()*3);
+  state.F.scale=Math.round(10+r()*16);
+  state.F.raster=+(r()).toFixed(2);
+  state.F.inkt=+(0.3+r()*0.5).toFixed(2);
+  syncUI();render();
+};
+document.getElementById('btnChaos').onclick=()=>{
+  commit();
+  const S=newSeed();const r=mulberry32(S);
+  const chance=p=>r()<p;
+  state.seed=S;state.gridSeed=newSeed();state.overlaySeed=newSeed();
+  state.frame=pick(r,['1080x1350','1080x1440','1080x1920','1080x1080','1600x900']);
+  state.A.on=chance(0.9);
+  state.A.layout=pick(r,['AUTO','AUTO','GEVELRIJ','PANELEN','VLAK','SPLIT']);
+  state.A.count=2+Math.floor(r()*8);
+  state.A.vary=+(r()).toFixed(2);
+  state.A.stagger=+(r()*0.6).toFixed(2);
+  state.A.gap=Math.round(r()*36);
+  state.A.water=+(0.45+r()*0.37).toFixed(2);
+  state.A.droom=+(r()).toFixed(2);
+  state.A.outline=chance(0.35);
+  state.B.on=chance(0.9);
+  state.B.water=chance(0.65);
+  state.B.amp=+(r()*26).toFixed(1);
+  state.B.wave=Math.round(6+r()*34);
+  state.B.compress=+(0.75+r()*0.25).toFixed(2);
+  state.B.fade=+(r()).toFixed(2);
+  state.B.gold=chance(0.75);
+  state.B.goldamt=+(r()).toFixed(2);
+  state.C.hour=+(r()).toFixed(2);
+  state.C.halation=+(r()).toFixed(2);
+  state.C.bokeh=+(r()).toFixed(2);
+  state.C.vig=+(r()).toFixed(2);
+  state.D.palette=pick(r,Object.keys(PALETTES));
+  state.D.grade=+(r()).toFixed(2);
+  state.D.milk=+(r()*0.6).toFixed(2);
+  state.D.sat=+(0.6+r()*1.2).toFixed(2);
+  state.D.grain=+(r()*0.4).toFixed(2);
+  state.F.on=chance(0.8);
+  state.F.blocks=Math.floor(r()*5);
+  state.F.scale=Math.round(8+r()*22);
+  state.F.raster=+(r()).toFixed(2);
+  state.F.inkt=+(r()).toFixed(2);
+  state.F.fade=chance(0.75);
+  state.E.showTitle=chance(0.3);
+  state.E.showSub=state.E.showTitle&&chance(0.5);
+  state.E.showMenu=chance(0.2);
+  state.E.rule=chance(0.7);
+  syncUI();render();
+};
+document.getElementById('btnReshuffle').onclick=()=>{commit();state.gridSeed=newSeed();render();};
+document.getElementById('btnLight').onclick=()=>{commit();state.overlaySeed=newSeed();render();};
+
+/* ================= BINDINGS ================= */
+function bindRange(id,obj,key,fmt){
+  const el=document.getElementById(id),lab=document.getElementById(id+'V');
+  el.addEventListener('input',()=>{
+    if(!el._live){el._live=true;commit();}
+    obj[key]=parseFloat(el.value);
+    if(lab)lab.textContent=fmt?fmt(obj[key]):obj[key];
+    render();});
+  el.addEventListener('change',()=>{el._live=false;});
+}
+function bindSelect(id,obj,key){
+  const el=document.getElementById(id);
+  el.addEventListener('change',()=>{commit();obj[key]=el.value;render();});
+}
+function bindText(id,obj,key){
+  const el=document.getElementById(id);
+  el.addEventListener('input',()=>{
+    if(!el._live){el._live=true;commit();}
+    obj[key]=el.value;render();});
+  el.addEventListener('change',()=>{el._live=false;});
+}
+function bindCheck(id,obj,key){
+  const el=document.getElementById(id);
+  el.addEventListener('click',()=>{commit();obj[key]=!obj[key];el.classList.toggle('on',obj[key]);render();});
+}
+bindSelect('frame',state,'frame');
+bindSelect('dispfont',state,'dispfont');
+bindSelect('layout',state.A,'layout');
+bindRange('count',state.A,'count');
+bindRange('vary',state.A,'vary',v=>v.toFixed(2));
+bindRange('stagger',state.A,'stagger',v=>v.toFixed(2));
+bindRange('gap',state.A,'gap');
+bindRange('water',state.A,'water',v=>v.toFixed(2));
+bindRange('droom',state.A,'droom',v=>v.toFixed(2));
+bindCheck('ckOutline',state.A,'outline');
+bindCheck('ckWater',state.B,'water');
+bindRange('amp',state.B,'amp',v=>v.toFixed(1));
+bindRange('wave',state.B,'wave');
+bindRange('compress',state.B,'compress',v=>v.toFixed(2));
+bindRange('fade',state.B,'fade',v=>v.toFixed(2));
+bindCheck('ckGold',state.B,'gold');
+bindRange('goldamt',state.B,'goldamt',v=>v.toFixed(2));
+bindRange('hour',state.C,'hour',fmtHour);
+bindRange('halation',state.C,'halation',v=>v.toFixed(2));
+bindRange('bokeh',state.C,'bokeh',v=>v.toFixed(2));
+bindRange('vig',state.C,'vig',v=>v.toFixed(2));
+bindSelect('palette',state.D,'palette');
+bindRange('grade',state.D,'grade',v=>v.toFixed(2));
+bindRange('milk',state.D,'milk',v=>v.toFixed(2));
+bindRange('sat',state.D,'sat',v=>v.toFixed(2));
+bindRange('grain',state.D,'grain',v=>v.toFixed(2));
+bindRange('blocks',state.F,'blocks');
+bindRange('scale',state.F,'scale');
+bindRange('raster',state.F,'raster',v=>v.toFixed(2));
+bindRange('inkt',state.F,'inkt',v=>v.toFixed(2));
+bindCheck('ckFade',state.F,'fade');
+bindCheck('ckTitle',state.E,'showTitle');
+bindCheck('ckSub',state.E,'showSub');
+bindCheck('ckMenu',state.E,'showMenu');
+bindCheck('ckRule',state.E,'rule');
+bindText('title',state.E,'title');
+bindText('subtitle',state.E,'subtitle');
+bindText('menu',state.E,'menu');
+
+// module on/off toggles
+document.querySelectorAll('.modhead').forEach(h=>{
+  h.addEventListener('click',e=>{
+    if(e.target.tagName==='BUTTON'||e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;
+    const m=h.dataset.mod;commit();
+    state[m].on=!state[m].on;
+    document.getElementById('mod'+m).classList.toggle('off',!state[m].on);
+    render();
+  });
+});
+
+/* ================= SYNC UI ================= */
+function syncUI(){
+  const set=(id,v)=>{document.getElementById(id).value=v;};
+  const lab=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
+  set('frame',state.frame);set('dispfont',state.dispfont);
+  set('count',state.A.count);lab('countV',state.A.count);
+  set('vary',state.A.vary);lab('varyV',state.A.vary.toFixed(2));
+  set('stagger',state.A.stagger);lab('staggerV',state.A.stagger.toFixed(2));
+  set('gap',state.A.gap);lab('gapV',state.A.gap);
+  set('water',state.A.water);lab('waterV',state.A.water.toFixed(2));
+  set('layout',state.A.layout);
+  set('droom',state.A.droom);lab('droomV',state.A.droom.toFixed(2));
+  set('amp',state.B.amp);lab('ampV',state.B.amp.toFixed(1));
+  set('wave',state.B.wave);lab('waveV',state.B.wave);
+  set('compress',state.B.compress);lab('compressV',state.B.compress.toFixed(2));
+  set('fade',state.B.fade);lab('fadeV',state.B.fade.toFixed(2));
+  set('goldamt',state.B.goldamt);lab('goldamtV',state.B.goldamt.toFixed(2));
+  set('hour',state.C.hour);lab('hourV',fmtHour(state.C.hour));
+  set('halation',state.C.halation);lab('halationV',state.C.halation.toFixed(2));
+  set('bokeh',state.C.bokeh);lab('bokehV',state.C.bokeh.toFixed(2));
+  set('vig',state.C.vig);lab('vigV',state.C.vig.toFixed(2));
+  set('palette',state.D.palette);
+  set('grade',state.D.grade);lab('gradeV',state.D.grade.toFixed(2));
+  set('milk',state.D.milk);lab('milkV',state.D.milk.toFixed(2));
+  set('sat',state.D.sat);lab('satV',state.D.sat.toFixed(2));
+  set('grain',state.D.grain);lab('grainV',state.D.grain.toFixed(2));
+  set('blocks',state.F.blocks);lab('blocksV',state.F.blocks);
+  set('scale',state.F.scale);lab('scaleV',state.F.scale);
+  set('raster',state.F.raster);lab('rasterV',state.F.raster.toFixed(2));
+  set('inkt',state.F.inkt);lab('inktV',state.F.inkt.toFixed(2));
+  set('title',state.E.title);set('subtitle',state.E.subtitle);set('menu',state.E.menu);
+  const cks={ckOutline:state.A.outline,ckWater:state.B.water,ckGold:state.B.gold,ckFade:state.F.fade,
+             ckTitle:state.E.showTitle,ckSub:state.E.showSub,ckMenu:state.E.showMenu,ckRule:state.E.rule};
+  for(const id in cks)document.getElementById(id).classList.toggle('on',cks[id]);
+  for(const m of['A','B','C','D','E','F'])
+    document.getElementById('mod'+m).classList.toggle('off',!state[m].on);
+  document.getElementById('seedval').textContent=state.seed;
+}
+
+/* ================= BOOT ================= */
+makeDefaultImage();
+syncUI();
+render();
+</script>
+</body>
+</html>

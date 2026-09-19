@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Coffee × AI · Daniel Humphries</title>
+<meta name="description" content="Three working systems built on real farm and roastery data: climate reports for any farm on earth, a cupping archive that never goes stale, and a question box over everything a roastery knows. The same approach works for any business with information in too many places.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&display=swap">
+<link rel="stylesheet" href="site.css">
+</head>
+<body data-paper="ledger" data-paper-seed="29">
+
+<header class="top">
+  <a class="home" href="index.html">Daniel Humphries</a>
+  <nav aria-label="Sections">
+    <a href="coffee.html">Coffee</a>
+    <a href="coffee-ai.html" aria-current="page">Coffee × AI</a>
+    <a href="studio.html">Studio</a>
+  </nav>
+</header>
+
+<main>
+  <h1 class="title">Coffee × AI</h1>
+  <p class="lede">I know coffee from the inside, so the first systems I built were for coffee: a farm, a cupping table, a roastery. What they have in common is a business with information in too many places and nobody with time to go and find it. That describes most businesses, not just mine. If yours is a winery, a restaurant, a fashion label or a workshop, the same approach applies, and I'd like to hear about it.</p>
+
+  <section class="ledger" aria-label="Three systems">
+
+    <div class="k" id="climate">Farms</div>
+    <div class="v">
+      <h2>Farm climate reports</h2>
+      <p>A pipeline that pulls four decades of daily satellite and reanalysis weather for any set of coordinates, corrects it for the farm's real elevation, and writes the analysis a farm actually needs: rainfall and dry spells, warming trends, day-night temperature range, harvest and drying windows, flowering triggers, and disease risk.</p>
+      <p>Most farms have no weather station and no history. The data exists, but it's raw, gridded, and at the wrong elevation. The interpretation is the part that needs someone who has stood on the farm.</p>
+      <div class="sub">
+        <div class="k">Sources</div>
+        <p>NASA POWER and Open-Meteo, with a 40-year ERA5 daily dataset as the backbone.</p>
+        <div class="k">Elevation</div>
+        <p>The grid cell reports its own elevation; the farm's is known. A standard lapse rate of 6.5 °C per 1,000 m is applied to the difference, rather than guessing at terrain.</p>
+        <div class="k">Analysis</div>
+        <p>Python does the statistics. AI drafts the narrative from the finished numbers, and I edit it as an agronomist would read it.</p>
+        <div class="k">Output</div>
+        <p>Two documents per farm: a short executive summary and a full report with a section per question.</p>
+      </div>
+      <div class="sub">
+        <div class="k">Gesha Village, Ethiopia</div>
+        <p>Full climate analysis plus a Coffee Wilt Disease risk assessment, at Willem Boot's request.</p>
+        <div class="k">Fazenda Pedra Preta, Brazil</div>
+        <p>Eduardo's farm in Manhuaçu, Minas Gerais. Agroforestry, careful with the land, and very good coffee; Coffee &amp; Coconuts buys a full container from them this year. They had a weather station on the farm that had been logging for four years with nobody looking at the data. I took the whole record and wrote them a report: what each month looks like on their farm, how it has shifted over the four years, and how their readings compare to the official station in the nearest town. Not a full microclimate study, which would need readings from all around the farm, but far more than most farms ever learn about their own weather.</p>
+      </div>
+      <p>If you run a farm, send me coordinates and I'll send you a report.</p>
+    </div>
+
+    <div class="k" id="cupping">The cupping table</div>
+    <div class="v">
+      <h2>The cupping vault</h2>
+      <p>A cupping record system built from Obsidian, a phone, and Claude. Every sample that comes into the roastery gets a photo and a spoken evaluation. The transcription is cleaned up, matched to the right coffee, and filed as a markdown note that links to the lot, the roast, and every other time I've cupped it.</p>
+      <p>I have cupped professionally for twenty years and most of those notes are gone: paper sheets, an app that closed, a spreadsheet that didn't match another spreadsheet. Every cupper has this problem. The conventional fix is either a slow form or someone's proprietary software. I wanted something I'd actually use at the table, and that would still be readable in twenty years.</p>
+      <div class="sub">
+        <div class="k">Capture</div>
+        <p>Photograph the sample bag or tray. Talk. Formal SCA scoring or a casual impression, either is fine.</p>
+        <div class="k">Names</div>
+        <p>Coffee names get mangled by speech-to-text. A short protocol at the start of each dictation, plus a lookup against the vault's lot list, means "Suke Quto" never becomes anything else.</p>
+        <div class="k">Filing</div>
+        <p>Claude turns the transcript into a structured note: descriptors, scores if spoken, defects, context. It never invents a number that wasn't said.</p>
+        <div class="k">Linking</div>
+        <p>Notes link to the green lot, the roast batch, and previous cuppings of the same coffee, so a lot's whole history is one click deep.</p>
+        <div class="k">Format</div>
+        <p>Plain markdown. No database, no vendor. The archive is a folder of text files that any tool can read.</p>
+      </div>
+      <p>Every cupping I've done since developing this in October 2025 is searchable. I'm even able to add in old notes I find in a drawer or on an ancient Google Drive. I can ask what a coffee tasted like six roasts ago and get my own words back. The roastery query system grew directly out of this.</p>
+    </div>
+
+    <div class="k" id="query">The roastery</div>
+    <div class="v">
+      <h2>The roastery query system</h2>
+      <p>A question-answering system over everything Coffee &amp; Coconuts knows about its coffee: Cropster roast data, Shopify orders, green quality readings (moisture, water activity, roast colour), cupping notes, customer records, meeting notes. Anyone on the team asks from their phone and gets an answer that quotes the source.</p>
+      <p>A roastery growing thirty times over in five years has more information than anyone can hold in their head, spread across more systems than anyone wants to open. The question is whether the person on the floor at four o'clock can find the one fact they need. This gives the team a single ground truth.</p>
+      <div class="sub">
+        <div class="k">One source</div>
+        <p>The vault is the only source. Around five hundred markdown files, hand-written and machine-synced. The system cannot answer from anything else.</p>
+        <div class="k">Two models</div>
+        <p>No agent loose in the middle. A small model turns the question into a fetch plan. Plain Python runs the plan. A second model phrases only what was fetched, with the file it came from. It cannot hallucinate a source because it never sees the vault.</p>
+        <div class="k">Numbers</div>
+        <p>Computed, not guessed. Revenue, kilos, top customers: Python does the arithmetic from the order ledgers, the model only reads the result aloud, and the answer says what was excluded.</p>
+        <div class="k">Shared files</div>
+        <p>Machine and human write to the same documents. Sync jobs rewrite only their own fenced section of a customer note; my notes around it are untouched.</p>
+        <div class="k">Voice</div>
+        <p>Four languages. Dictate in Spanish, French, Dutch or English; the pipeline thinks in English and translates at the edges.</p>
+      </div>
+      <p>Live for the team since August 2026. The front end is a phone-sized web page; the work is in the back end: the sync jobs, the fetch planner, the ledger parsers, the vault itself.</p>
+      <p>The vault doesn't know it's about coffee. Pointed at a winery's cellar records, a restaurant's suppliers and bookings, or a label's samples and orders, the same system answers the same kinds of questions.</p>
+    </div>
+
+  </section>
+
+  <p class="close">If your business has information in too many places, coffee or not, write to <a href="mailto:dmhnuclear@gmail.com">dmhnuclear@gmail.com</a>.</p>
+</main>
+
+<script src="paper.js"></script>
+</body>
+</html>

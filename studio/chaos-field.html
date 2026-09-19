@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CHAOS FIELD — clarity shader playground</title>
+<style>
+:root{
+  --h: 285;
+  --bg:      oklch(0.16 0.022 var(--h));
+  --bg2:     oklch(0.20 0.028 var(--h));
+  --panel:   oklch(0.22 0.030 var(--h));
+  --line:    oklch(0.32 0.040 var(--h));
+  --ink:     oklch(0.82 0.030 var(--h));
+  --dim:     oklch(0.58 0.035 var(--h));
+  --acc:     oklch(0.76 0.130 var(--h));
+  --acc2:    oklch(0.66 0.110 var(--h));
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:'SF Mono','Cascadia Code','Consolas',monospace;
+  font-size:12px;
+  display:flex;
+  overflow:hidden;
+}
+#stage{
+  flex:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:
+    radial-gradient(ellipse at 50% 40%, oklch(0.19 0.028 var(--h)), var(--bg) 70%);
+  position:relative;
+  min-width:0;
+}
+#wrap{position:relative;line-height:0;box-shadow:0 0 0 1px var(--line), 0 24px 60px oklch(0.08 0.02 var(--h))}
+canvas#gl{image-rendering:pixelated;display:block;cursor:crosshair}
+#hud{
+  position:absolute;left:14px;top:12px;
+  color:var(--dim);letter-spacing:1px;font-size:11px;
+  user-select:none;pointer-events:none;
+}
+#hud b{color:var(--acc);font-weight:600}
+#holdtag{
+  position:absolute;left:14px;bottom:12px;
+  color:var(--acc);letter-spacing:2px;font-size:11px;
+  opacity:0;transition:opacity .15s;user-select:none;pointer-events:none;
+}
+#holdtag.on{opacity:1}
+#droptag{
+  position:absolute;right:14px;bottom:12px;
+  color:var(--dim);letter-spacing:1px;font-size:10px;
+  user-select:none;pointer-events:none;
+}
+#panel{
+  width:312px;flex:none;height:100%;overflow-y:auto;
+  background:var(--panel);
+  border-left:1px solid var(--line);
+  padding:16px 16px 40px;
+}
+#panel::-webkit-scrollbar{width:8px}
+#panel::-webkit-scrollbar-thumb{background:var(--line)}
+h1{
+  font-size:13px;font-weight:700;letter-spacing:3px;color:var(--acc);
+  margin-bottom:2px;
+}
+.sub{color:var(--dim);font-size:10px;letter-spacing:1px;margin-bottom:14px}
+.sec{
+  border-top:1px solid var(--line);
+  padding-top:10px;margin-top:14px;
+}
+.sec .t{
+  font-size:10px;letter-spacing:3px;color:var(--acc2);
+  margin-bottom:8px;user-select:none;
+}
+.row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.row label{flex:0 0 96px;color:var(--ink);letter-spacing:.5px;font-size:11px}
+.row .v{flex:0 0 44px;text-align:right;color:var(--acc);font-size:11px}
+input[type=range]{
+  flex:1;-webkit-appearance:none;appearance:none;height:2px;
+  background:var(--line);outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:11px;height:11px;
+  background:var(--acc);border:none;cursor:pointer;
+}
+input[type=range]::-moz-range-thumb{
+  width:11px;height:11px;background:var(--acc);border:none;cursor:pointer;
+}
+.check{
+  display:flex;align-items:center;gap:8px;color:var(--ink);
+  cursor:pointer;user-select:none;margin-bottom:7px;font-size:11px;letter-spacing:.5px;
+}
+.check .box{
+  width:12px;height:12px;border:1px solid var(--line);flex:none;
+  display:flex;align-items:center;justify-content:center;
+}
+.check.on .box::after{content:'';width:6px;height:6px;background:var(--acc)}
+.btnrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+button{
+  font-family:inherit;font-size:10px;letter-spacing:1.5px;
+  background:transparent;color:var(--ink);
+  border:1px solid var(--line);padding:7px 10px;cursor:pointer;
+}
+button:hover{border-color:var(--acc);color:var(--acc)}
+button.pri{border-color:var(--acc2);color:var(--acc)}
+textarea{
+  width:100%;height:120px;margin-top:8px;
+  background:var(--bg2);color:var(--dim);
+  border:1px solid var(--line);
+  font-family:inherit;font-size:10px;padding:8px;resize:vertical;
+}
+.note{color:var(--dim);font-size:10px;line-height:1.5;margin-top:8px}
+input[type=file]{display:none}
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <div id="wrap">
+    <canvas id="gl" width="480" height="270"></canvas>
+    <div id="hud">CHAOS FIELD <b>480&#215;270</b> &#183; <span id="fps">--</span> FPS</div>
+    <div id="holdtag">&#9679; HOLDING &#8212; STATE DEEPENS</div>
+    <div id="droptag">drop art plate here</div>
+  </div>
+</div>
+
+<div id="panel">
+  <h1>CHAOS FIELD</h1>
+  <div class="sub">clarity shader playground v8 &#183; pointer = player &#183; hold mouse = deepen</div>
+
+  <div class="sec"><div class="t">FIELD</div>
+    <div class="row"><label>REGION LEVEL</label><input type="range" id="level" min="1" max="9" step="1"><span class="v" id="levelV"></span></div>
+    <div class="row"><label>CHAOS</label><input type="range" id="chaos" min="0" max="1" step="0.01"><span class="v" id="chaosV"></span></div>
+    <div class="row"><label>WARP AMP</label><input type="range" id="amp" min="0" max="24" step="0.5"><span class="v" id="ampV"></span></div>
+    <div class="row"><label>WARP SCALE</label><input type="range" id="freq" min="1" max="15" step="0.5"><span class="v" id="freqV"></span></div>
+    <div class="row"><label>SPEED</label><input type="range" id="speed" min="0" max="2" step="0.05"><span class="v" id="speedV"></span></div>
+    <div class="row"><label>ABERRATION</label><input type="range" id="aber" min="0" max="3" step="0.1"><span class="v" id="aberV"></span></div>
+    <div class="row"><label>GRAIN</label><input type="range" id="grain" min="0" max="0.4" step="0.01"><span class="v" id="grainV"></span></div>
+  </div>
+
+  <div class="sec"><div class="t">BREAKDOWN</div>
+    <div class="row"><label>GLITCH</label><input type="range" id="glitch" min="0" max="1" step="0.01"><span class="v" id="glitchV"></span></div>
+    <div class="row"><label>SHAPES</label><input type="range" id="shapes" min="0" max="1" step="0.01"><span class="v" id="shapesV"></span></div>
+    <div class="row"><label>ONSET</label><input type="range" id="onset" min="0" max="0.8" step="0.02"><span class="v" id="onsetV"></span></div>
+    <div class="row"><label>SHARD COLOR</label><input type="range" id="shard" min="0" max="1" step="0.01"><span class="v" id="shardV"></span></div>
+    <div class="row"><label>SCRAMBLE</label><input type="range" id="scramble" min="0" max="1" step="0.01"><span class="v" id="scrambleV"></span></div>
+  </div>
+
+  <div class="sec"><div class="t">CLARITY &#8212; ATTAINMENT</div>
+    <div class="row"><label>TIER (BANDS)</label><input type="range" id="tier" min="0" max="9" step="1"><span class="v" id="tierV"></span></div>
+    <div class="row"><label>RADIUS</label><input type="range" id="radius" min="40" max="360" step="2"><span class="v" id="radiusV"></span></div>
+    <div class="row"><label>BAND CURVE</label><input type="range" id="curve" min="1" max="4" step="0.1"><span class="v" id="curveV"></span></div>
+    <div class="row"><label>BAND EDGE</label><input type="range" id="soft" min="0.02" max="1" step="0.02"><span class="v" id="softV"></span></div>
+    <div class="row"><label>BREATH</label><input type="range" id="breath" min="0" max="1" step="0.05"><span class="v" id="breathV"></span></div>
+    <div class="row"><label>RING GLOW</label><input type="range" id="glow" min="0" max="1" step="0.05"><span class="v" id="glowV"></span></div>
+  </div>
+
+  <div class="sec"><div class="t">PALETTE</div>
+    <div class="row"><label>TINT</label><input type="range" id="tint" min="0" max="1" step="0.01"><span class="v" id="tintV"></span></div>
+    <div class="row"><label>INCOHERENCE</label><input type="range" id="incoher" min="0" max="1" step="0.01"><span class="v" id="incoherV"></span></div>
+    <div class="row"><label>CHAOS HUE</label><input type="range" id="hue" min="0" max="360" step="1"><span class="v" id="hueV"></span></div>
+  </div>
+
+  <div class="sec"><div class="t">RENDER</div>
+    <div class="check on" id="ckSnap"><div class="box"></div>SNAP WARP TO TEXEL GRID</div>
+    <div class="btnrow">
+      <button id="btnScene">&#8635; REROLL SCENE</button>
+      <button id="btnUpload">LOAD ART PLATE</button>
+    </div>
+  </div>
+
+  <div class="sec"><div class="t">CHAOS LEVELS &#8212; REGION AXIS</div>
+    <div class="btnrow">
+      <button data-level="1">1</button><button data-level="2">2</button><button data-level="3">3</button>
+      <button data-level="4">4</button><button data-level="5">5</button><button data-level="6">6</button>
+      <button data-level="7">7</button><button data-level="8">8</button><button data-level="9">9</button>
+    </div>
+    <div class="note">Sets field, breakdown, and palette only &#8212; clarity stays as the player-state axis. 1 heavy warp, 2 first tears, 3 structural tearing, 4 first shards, 5&#8211;6 storm, 7 tile scramble arrives, 8 scramble spreads, 9 wild shards + near-total scramble.</div>
+  </div>
+
+  <div class="sec"><div class="t">PRESETS</div>
+    <div class="btnrow">
+      <button data-preset="quiet">QUIET PROVINCE</button>
+      <button data-preset="fevered">FEVERED GROUND</button>
+      <button data-preset="shrine">SHRINE</button>
+      <button data-preset="finale">TREASURE CHAMBER</button>
+    </div>
+  </div>
+
+  <div class="sec"><div class="t">HANDOFF</div>
+    <div class="btnrow">
+      <button class="pri" id="btnExport">EXPORT PARAMS &#8594; JSON</button>
+    </div>
+    <textarea id="json" spellcheck="false" readonly></textarea>
+    <div class="note">Paste this block into the Phase&#160;6 spec. Values map 1:1 to shader uniforms; the Phaser pipeline receives numbers, not adjectives.</div>
+  </div>
+
+  <input type="file" id="file" accept="image/*">
+</div>
+
+<script>
+'use strict';
+
+/* ================= STATE ================= */
+var P = {
+  level: 4, chaos: 0.60, amp: 6.0, freq: 6.0, speed: 0.5, aber: 1.0, grain: 0.08,
+  glitch: 0.45, shapes: 0.30, onset: 0.35, shard: 0.0, scramble: 0.0,
+  tier: 3, radius: 200, curve: 2.2, soft: 0.30, breath: 0.5, glow: 0.35,
+  tint: 0.55, incoher: 0.65, hue: 285,
+  snap: 1, sceneSeed: 7
+};
+
+var PRESETS = {
+  quiet:   { chaos:0.18, amp:3.0, freq:5.0, speed:0.35, aber:0.4, grain:0.05,
+             glitch:0.10, shapes:0.05, onset:0.45, shard:0.0, scramble:0.0,
+             tier:2, radius:220, curve:2.0, soft:0.35, breath:0.4, glow:0.20,
+             tint:0.30, incoher:0.30, hue:285, level:1 },
+  fevered: { chaos:0.82, amp:9.0, freq:7.5, speed:0.75, aber:1.6, grain:0.12,
+             glitch:0.55, shapes:0.40, onset:0.35, shard:0.0, scramble:0.0,
+             tier:4, radius:190, curve:2.4, soft:0.25, breath:0.6, glow:0.40,
+             tint:0.70, incoher:0.85, hue:322, level:6 },
+  shrine:  { chaos:0.06, amp:2.0, freq:4.0, speed:0.20, aber:0.0, grain:0.03,
+             glitch:0.0, shapes:0.0, onset:0.5, shard:0.0, scramble:0.0,
+             tier:5, radius:300, curve:2.0, soft:0.50, breath:0.25, glow:0.10,
+             tint:0.15, incoher:0.10, hue:230, level:1 },
+  finale:  { chaos:1.00, amp:14.0, freq:9.0, speed:1.00, aber:2.4, grain:0.16,
+             glitch:0.95, shapes:0.75, onset:0.20, shard:1.0, scramble:0.5,
+             tier:8, radius:240, curve:2.8, soft:0.18, breath:0.8, glow:0.65,
+             tint:0.85, incoher:1.00, hue:350, level:9 }
+};
+
+/* ================= SEEDED PRNG ================= */
+function mulberry32(a){
+  return function(){
+    a|=0; a=(a+0x6D2B79F5)|0;
+    var t=Math.imul(a^(a>>>15),1|a);
+    t=(t+Math.imul(t^(t>>>7),61|t))^t;
+    return ((t^(t>>>14))>>>0)/4294967296;
+  };
+}
+
+/* ================= SCENE PLATE (procedural placeholder) ================= */
+var W=480, H=270;
+var scene=document.createElement('canvas'); scene.width=W; scene.height=H;
+var sctx=scene.getContext('2d');
+var userPlate=null;
+
+function ok(l,c,h){ return 'oklch('+l+' '+c+' '+h+')'; }
+
+function drawScene(){
+  if(userPlate){ sctx.imageSmoothingEnabled=false; sctx.drawImage(userPlate,0,0,W,H); return; }
+  var rnd=mulberry32(P.sceneSeed*2654435761>>>0);
+  var hB=265;            // base scene hue (cool violet-blue night)
+  var hS=hB+25;          // shadow hue drifts warmer-violet: colored shadows, no pure black
+  sctx.imageSmoothingEnabled=false;
+
+  // void sky
+  var g=sctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0, ok(0.13,0.030,hB));
+  g.addColorStop(1, ok(0.20,0.040,hB-10));
+  sctx.fillStyle=g; sctx.fillRect(0,0,W,H);
+
+  // far treeline silhouettes
+  for(var i=0;i<26;i++){
+    var tx=Math.floor(rnd()*W), tw=8+Math.floor(rnd()*18), th=14+Math.floor(rnd()*22);
+    sctx.fillStyle=ok(0.17,0.045,hB+15);
+    sctx.fillRect(tx,86-th,tw,th);
+    sctx.fillStyle=ok(0.22,0.050,hB+5);
+    sctx.fillRect(tx, 86-th, tw, 2);
+  }
+
+  // ground: tiled turf, two shades + variants
+  var TS=12, gy=88;
+  for(var y=gy;y<H;y+=TS){
+    for(var x=0;x<W;x+=TS){
+      var v=rnd();
+      var l = ((x/TS + y/TS)%2===0) ? 0.235 : 0.255;
+      if(v>0.92) l+=0.035; else if(v<0.07) l-=0.03;
+      sctx.fillStyle=ok(l,0.045,150+((v*20)|0));  // desaturated mossy green
+      sctx.fillRect(x,y,TS,TS);
+    }
+  }
+  // grass specks
+  for(i=0;i<220;i++){
+    var sx=(rnd()*W)|0, sy=gy+((rnd()*(H-gy))|0);
+    sctx.fillStyle=rnd()>0.5?ok(0.33,0.06,145):ok(0.21,0.05,hS);
+    sctx.fillRect(sx,sy,1,1);
+  }
+
+  // stone path
+  for(y=gy+8;y<H;y+=6){
+    var px=W*0.62+Math.sin(y*0.05)*14;
+    for(x=-18;x<18;x+=6){
+      sctx.fillStyle=ok(0.30+rnd()*0.04,0.018,hB+30);
+      sctx.fillRect((px+x)|0,y,5,4);
+    }
+  }
+
+  // shrine structure
+  function block(bx,by,bw,bh,l){
+    sctx.fillStyle=ok(l,0.030,hB+20);      sctx.fillRect(bx,by,bw,bh);         // body
+    sctx.fillStyle=ok(l+0.13,0.040,hB-30); sctx.fillRect(bx,by,bw,2);          // top light
+    sctx.fillStyle=ok(l+0.10,0.040,hB-30); sctx.fillRect(bx,by,2,bh);          // left light
+    sctx.fillStyle=ok(l-0.07,0.055,hS);    sctx.fillRect(bx+bw-2,by,2,bh);     // violet shadow
+    sctx.fillStyle=ok(l-0.08,0.055,hS);    sctx.fillRect(bx,by+bh-2,bw,2);
+  }
+  block(150,60,110,70,0.30);          // main hall
+  block(140,120,130,14,0.27);         // plinth
+  block(120,74,18,60,0.28);           // pillars
+  block(272,74,18,60,0.28);
+  // roof line
+  sctx.fillStyle=ok(0.24,0.05,hS); sctx.fillRect(144,54,122,8);
+  sctx.fillStyle=ok(0.42,0.05,hB-40); sctx.fillRect(144,54,122,2);
+
+  // doorway (dark interior, hue-tinted)
+  sctx.fillStyle=ok(0.14,0.045,hS); sctx.fillRect(192,92,26,38);
+  sctx.fillStyle=ok(0.34,0.04,hB-20); sctx.fillRect(192,92,26,2);
+
+  // mural / sign with glyph rows — the legibility probe
+  sctx.fillStyle=ok(0.35,0.025,70);  sctx.fillRect(40,120,64,44);   // parchment stone
+  sctx.fillStyle=ok(0.25,0.04,hS);   sctx.fillRect(40,160,64,4);    // base shadow
+  sctx.fillStyle=ok(0.50,0.03,70);   sctx.fillRect(40,120,64,2);
+  for(var r=0;r<6;r++){
+    var cx2=46;
+    while(cx2<98){
+      var wl=2+((rnd()*6)|0);
+      if(rnd()>0.18){
+        sctx.fillStyle=ok(0.62,0.05,60);
+        sctx.fillRect(cx2,127+r*6,wl,2);
+      }
+      cx2+=wl+2;
+    }
+  }
+
+  // near trees with rim light
+  function tree(tx2,ty2,s){
+    sctx.fillStyle=ok(0.185,0.05,170);
+    sctx.beginPath(); sctx.arc(tx2,ty2,s,0,7); sctx.fill();
+    sctx.fillStyle=ok(0.16,0.055,hS);
+    sctx.beginPath(); sctx.arc(tx2+s*0.3,ty2+s*0.3,s*0.7,0,7); sctx.fill();
+    sctx.fillStyle=ok(0.30,0.06,140);
+    sctx.fillRect(tx2-s+2,(ty2-s+2)|0,3,1); sctx.fillRect((tx2-s*0.4)|0,(ty2-s)|0,4,1);
+    sctx.fillStyle=ok(0.20,0.03,60);
+    sctx.fillRect(tx2-2,ty2+s-2,4,8);
+  }
+  tree(60,210,16); tree(330,190,13); tree(420,225,19); tree(390,120,11);
+
+  // lanterns: warm accents + glow
+  function lantern(lx,ly){
+    var lg=sctx.createRadialGradient(lx,ly,0,lx,ly,16);
+    lg.addColorStop(0,'oklch(0.65 0.13 70 / 0.35)');
+    lg.addColorStop(1,'oklch(0.65 0.13 70 / 0)');
+    sctx.fillStyle=lg; sctx.fillRect(lx-16,ly-16,32,32);
+    sctx.fillStyle=ok(0.80,0.14,75); sctx.fillRect(lx-1,ly-1,3,3);
+    sctx.fillStyle=ok(0.30,0.03,60); sctx.fillRect(lx,ly+2,1,10);
+  }
+  lantern(136,108); lantern(276,108); lantern(300,200);
+
+  // pond
+  sctx.fillStyle=ok(0.22,0.05,230);
+  sctx.fillRect(30,230,80,26);
+  sctx.fillStyle=ok(0.30,0.055,225);
+  for(i=0;i<10;i++){ sctx.fillRect(34+((rnd()*70)|0),233+((rnd()*20)|0),4+((rnd()*6)|0),1); }
+}
+
+/* ================= WEBGL ================= */
+var cv=document.getElementById('gl');
+var gl=cv.getContext('webgl2',{antialias:false});
+if(!gl){ document.getElementById('hud').textContent='WEBGL2 UNAVAILABLE'; throw new Error('no webgl2'); }
+
+var VS = '#version 300 es\n'+
+'void main(){\n'+
+'  vec2 p = vec2((gl_VertexID<<1 & 2), (gl_VertexID & 2));\n'+
+'  gl_Position = vec4(p*2.0-1.0, 0.0, 1.0);\n'+
+'}\n';
+
+var FS = '#version 300 es\n'+
+'precision highp float;\n'+
+'uniform sampler2D uScene;\n'+
+'uniform vec2  uRes;\n'+
+'uniform float uTime;\n'+
+'uniform vec2  uPlayer;\n'+
+'uniform float uChaos, uAmp, uFreq, uSpeed, uAber, uGrain;\n'+
+'uniform float uGlitch, uShapes, uOnset, uShard, uScramble;\n'+
+'uniform float uPerm[30];\n'+
+'uniform float uTier, uRadius, uCurve, uSoft, uBreath, uGlow, uLevel;\n'+
+'uniform float uTint, uIncoher, uHue;\n'+
+'uniform float uSnap, uSeed;\n'+
+'out vec4 fragColor;\n'+
+'\n'+
+'float hash21(vec2 p){ p=fract(p*vec2(123.34,345.45)); p+=dot(p,p+34.345); return fract(p.x*p.y); }\n'+
+'float vnoise(vec2 p){\n'+
+'  vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);\n'+
+'  float a=hash21(i), b=hash21(i+vec2(1,0)), c=hash21(i+vec2(0,1)), d=hash21(i+vec2(1,1));\n'+
+'  return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);\n'+
+'}\n'+
+'float fbm(vec2 p){\n'+
+'  float v=0.0, a=0.5;\n'+
+'  for(int i=0;i<4;i++){ v+=a*vnoise(p); p=p*2.03+11.7; a*=0.5; }\n'+
+'  return v;\n'+
+'}\n'+
+'\n'+
+'vec3 sampleScene(vec2 tx){\n'+
+'  vec2 s=tx;\n'+
+'  if(uSnap>0.5) s=floor(s)+0.5;\n'+
+'  s=clamp(s,vec2(0.5),uRes-0.5);\n'+
+'  return texture(uScene,s/uRes).rgb;\n'+
+'}\n'+
+'\n'+
+'// One layer of triangular shards. Each grid cell runs its own clock:\n'+
+'// hashed period in [pmin,pmax] seconds, hashed phase and duty cycle, and a\n'+
+'// fresh incarnation hash (k) each cycle so every rebirth gets a new angle,\n'+
+'// aspect, size, position jitter, and color. Deterministic, unsynchronized.\n'+
+'vec4 shapeLayer(vec2 tx, vec2 cell, float pmin, float pmax, float density, vec3 d3, float seedOff){\n'+
+'  vec4 outc=vec4(0.0);\n'+
+'  vec2 base=floor(tx/cell);\n'+
+'  // 3x3 neighborhood: triangles overflow their cells unclipped, so large\n'+
+'  // shards compose as true overlapping geometry, not grid-cut fragments.\n'+
+'  for(int dy=-1;dy<=1;dy++){\n'+
+'  for(int dx=-1;dx<=1;dx++){\n'+
+'    vec2 gc=base+vec2(float(dx),float(dy));\n'+
+'    float h0=hash21(gc*7.13+vec2(seedOff));\n'+
+'    float period=mix(pmin,pmax,h0);\n'+
+'    float ph=uTime/period+h0*7.0;\n'+
+'    float k=floor(ph);\n'+
+'    float fr=fract(ph);\n'+
+'    vec2 kk=vec2(k*3.7,k*9.1);\n'+
+'    float h1=hash21(gc+kk+vec2(seedOff,0.0));\n'+
+'    if(h1>density) continue;\n'+
+'    float duty=mix(mix(0.45,0.90,hash21(gc+kk+vec2(5.0,seedOff))),0.97,uShard);\n'+
+'    if(fr>duty) continue;\n'+
+'    vec2 cc=(gc+0.5)*cell+(vec2(hash21(gc+kk+vec2(11.0,0.0)),hash21(gc+kk+vec2(17.0,0.0)))-0.5)*cell*0.6;\n'+
+'    vec2 q=tx-cc;\n'+
+'    float ang=hash21(gc+kk+vec2(23.0,seedOff))*6.28318;\n'+
+'    float ca=cos(ang),sa=sin(ang);\n'+
+'    q=vec2(ca*q.x-sa*q.y, sa*q.x+ca*q.y);\n'+
+'    q.x*=mix(0.5,1.8,hash21(gc+kk+vec2(31.0,0.0)));\n'+
+'    float s=cell.y*mix(0.55,1.2,hash21(gc+kk+vec2(41.0,0.0)))*(1.0+0.6*uShard);\n'+
+'    q/=s;\n'+
+'    if(q.y<-0.5||abs(q.x)*1.732+q.y>0.6) continue;\n'+
+'    float pc=hash21(gc+kk+vec2(47.0,seedOff));\n'+
+'    vec3 scn=sampleScene(cc)*mix(0.55,1.60,hash21(gc+kk+vec2(53.0,seedOff)));\n'+
+'    vec3 wild=vec3(0.5)+vec3(0.5)*cos(6.28318*(vec3(1.0,1.31,0.71)*pc*3.0+d3));\n'+
+'    outc=vec4(clamp(mix(scn,wild,uShard),0.0,1.0),1.0);\n'+
+'  }}\n'+
+'  return outc;\n'+
+'}\n'+
+'\n'+
+'void main(){\n'+
+'  vec2 tx=gl_FragCoord.xy;\n'+
+'  float R=uRadius*(1.0+uBreath*0.06*sin(uTime*1.3));\n'+
+'  float d=distance(tx,uPlayer);\n'+
+'\n'+
+'  // ---- stepped radial clarity with power-curved bands ----\n'+
+'  // tc = t^curve: curve > 1 widens the deep central band, compresses shallow\n'+
+'  // attainments into thin shells at the rim.\n'+
+'  float tlin=clamp(d/R,0.0,1.0);\n'+
+'  float tc=pow(tlin,uCurve);\n'+
+'  float mask=1.0;\n'+
+'  if(uTier>0.5){\n'+
+'    float N=uTier;\n'+
+'    float band=floor(tc*N);\n'+
+'    float f=fract(tc*N);\n'+
+'    float edge=smoothstep(1.0-clamp(uSoft,0.02,1.0),1.0,f);\n'+
+'    float bandMask=clamp((band+edge)/N,0.0,1.0);\n'+
+'    // ceiling is relative to the region: matched depth (tier >= region\n'+
+'    // level) gives perfect clarity at center; each level of deficit leaves\n'+
+'    // one third more of the chaos. Two+ under = essentially no help.\n'+
+'    float r=clamp((uLevel-uTier)/3.0,0.0,1.0);\n'+
+'    mask=mix(r,1.0,bandMask);\n'+
+'  }\n'+
+'  float ec=uChaos*mask;                       // effective chaos at this texel\n'+
+'  float tt=uTime*uSpeed;\n'+
+'  float step8=floor(uTime*8.0);\n'+
+'\n'+
+'  // ---- BREAKDOWN: hard structural failure, gated above the onset threshold ----\n'+
+'  float gate=smoothstep(uOnset,min(uOnset+0.45,1.0),ec);\n'+
+'  float brk=uGlitch*gate;\n'+
+'\n'+
+'  vec2 tx2=tx;\n'+
+'  // ---- TILE SCRAMBLE: 6x5 grid of 80x54 squares, each reassigned to show\n'+
+'  // another square (content swap). A stable false geography (permutation is\n'+
+'  // seeded, not time-varying); clarity restores the true tile per-texel, so\n'+
+'  // bands cut through scrambled tiles and reveal them partially. ----\n'+
+'  if(uScramble>0.001 && gate>0.35){\n'+
+'    vec2 tileSz=vec2(80.0,54.0);\n'+
+'    vec2 tid=floor(tx/tileSz);\n'+
+'    int idx=int(tid.y)*6+int(tid.x);\n'+
+'    int src=int(uPerm[idx]+0.5);\n'+
+'    if(src!=idx){\n'+
+'      vec2 stile=vec2(float(src-(src/6)*6),float(src/6));\n'+
+'      tx2=stile*tileSz+(tx-tid*tileSz);\n'+
+'    }\n'+
+'  }\n'+
+'  // row tearing: whole scanline bands shear sideways\n'+
+'  float rid=floor(tx.y/5.0);\n'+
+'  float rh=hash21(vec2(rid,step8)+uSeed);\n'+
+'  if(rh>1.0-0.30*brk){\n'+
+'    tx2.x+=(hash21(vec2(rid*1.7,step8+3.0))-0.5)*90.0*brk;\n'+
+'  }\n'+
+'  // block displacement: 16px cells jump as units (datamosh / skipping disc)\n'+
+'  vec2 bc=floor(tx2/16.0);\n'+
+'  float bh=hash21(bc+vec2(step8*3.7,uSeed));\n'+
+'  bool blockHit=(bh>1.0-0.35*brk);\n'+
+'  if(blockHit){\n'+
+'    tx2+=(vec2(hash21(bc+vec2(step8+1.1,0.0)),hash21(bc+vec2(0.0,step8+2.2)))-0.5)*64.0*brk;\n'+
+'  }\n'+
+'\n'+
+'  // ---- soft domain warp (the liquid layer, always present with chaos) ----\n'+
+'  vec2 np=tx*uFreq*0.01;\n'+
+'  vec2 warp=vec2(fbm(np+vec2(tt,1.7)), fbm(np+vec2(-tt*0.8,91.2)))-0.5;\n'+
+'  vec2 off=warp*uAmp*2.0*ec;\n'+
+'  vec2 aoff=vec2(uAber,0.0)*ec;\n'+
+'\n'+
+'  vec3 col;\n'+
+'  col.r=sampleScene(tx2+off+aoff).r;\n'+
+'  col.g=sampleScene(tx2+off).g;\n'+
+'  col.b=sampleScene(tx2+off-aoff).b;\n'+
+'\n'+
+'  // some displaced blocks come back with scrambled channels\n'+
+'  if(blockHit && hash21(bc*2.3+vec2(step8,uSeed))>0.55) col=col.brg;\n'+
+'\n'+
+'  // ---- cosine palette tint: coherent = calm single-hue family;\n'+
+'  //      incoherent = discordant channel cycling ----\n'+
+'  float n=fbm(tx*uFreq*0.006+vec2(tt*0.4,-tt*0.3));\n'+
+'  float hue=uHue/360.0;\n'+
+'  float inc=uIncoher;\n'+
+'  vec3 nz=vec3(vnoise(tx*0.05+tt*0.10), vnoise(tx*0.05+vec2(50.0)), vnoise(tx*0.05+vec2(90.0)));\n'+
+'  vec3 b3=mix(vec3(0.10),vec3(0.45),inc);\n'+
+'  vec3 c3=mix(vec3(1.0), vec3(1.0,1.37,0.73)+(nz-0.5)*2.4, inc);\n'+
+'  vec3 d3=vec3(hue)+vec3(0.0,0.08,0.16)*mix(0.5,2.2,inc);\n'+
+'  vec3 palc=vec3(0.5)+b3*cos(6.28318*(c3*(n+tt*0.15)+d3));\n'+
+'  float lum=dot(col,vec3(0.299,0.587,0.114));\n'+
+'  vec3 tinted=palc*(lum*1.55+0.10);\n'+
+'  col=mix(col,tinted,uTint*ec);\n'+
+'\n'+
+'  // ---- SHAPES: triangular shards override the scene, angled all directions.\n'+
+'  // Three layers on independent slow clocks: big slabs 2.5-7s, medium 1.2-4.5s,\n'+
+'  // small chips 0.8-2.8s. ----\n'+
+'  float shp=uShapes*gate;\n'+
+'  if(shp>0.001){\n'+
+'    // uShard (the level-9 regime) also drives scale and coverage: shards grow\n'+
+'    // and multiply toward total occlusion. At uShard=1 nothing of the world\n'+
+'    // remains beneath.\n'+
+'    float dmul=1.0+2.5*uShard;\n'+
+'    float grow=1.0+0.9*uShard;\n'+
+'    if(uShard>0.01){\n'+
+'      vec4 sD=shapeLayer(tx+vec2(3.0,17.0),vec2(150.0,110.0),3.0,8.0,0.6*shp*uShard,d3+0.5,uSeed+113.0);\n'+
+'      if(sD.a>0.5) col=sD.rgb;\n'+
+'    }\n'+
+'    vec4 sA=shapeLayer(tx,vec2(58.0,44.0)*grow,2.5,7.0,min(1.0,0.28*shp*dmul),d3,uSeed);\n'+
+'    if(sA.a>0.5) col=sA.rgb;\n'+
+'    vec4 sB=shapeLayer(tx+vec2(13.0,5.0),vec2(27.0,21.0)*grow,1.2,4.5,min(1.0,0.38*shp*dmul),d3+0.33,uSeed+37.0);\n'+
+'    if(sB.a>0.5) col=sB.rgb;\n'+
+'    vec4 sC=shapeLayer(tx+vec2(7.0,11.0),vec2(13.0,10.0)*grow,0.8,2.8,min(1.0,0.32*shp*dmul),vec3(hue),uSeed+71.0);\n'+
+'    if(sC.a>0.5) col=sC.rgb;\n'+
+'  }\n'+
+'\n'+
+'  // ---- band-edge ring glow: what is held, radiates (inner rings brightest) ----\n'+
+'  if(uTier>0.5 && uGlow>0.001 && tlin<1.0){\n'+
+'    float f=fract(tc*uTier);\n'+
+'    float ring=smoothstep(0.10,0.0,min(f,1.0-f));\n'+
+'    float ch=fract(hue+0.5);\n'+
+'    vec3 gcol=vec3(0.5)+vec3(0.28)*cos(6.28318*vec3(ch,ch+0.05,ch+0.10));\n'+
+'    col+=gcol*ring*uGlow*uChaos*(1.0-tlin)*0.45;\n'+
+'  }\n'+
+'\n'+
+'  // deterministic chunky grain, quantized to 8fps shimmer\n'+
+'  float g=hash21(tx+floor(uTime*8.0)*vec2(13.7,7.1)+uSeed);\n'+
+'  col+=(g-0.5)*uGrain*(0.25+0.75*ec);\n'+
+'\n'+
+'  // player marker (small diamond)\n'+
+'  float md=abs(tx.x-uPlayer.x)+abs(tx.y-uPlayer.y);\n'+
+'  if(md<3.5) col=mix(col,vec3(0.92,0.90,0.98),md<1.5?0.95:0.4);\n'+
+'\n'+
+'  fragColor=vec4(col,1.0);\n'+
+'}\n';
+
+function compile(type,src){
+  var s=gl.createShader(type);
+  gl.shaderSource(s,src); gl.compileShader(s);
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){
+    console.error(gl.getShaderInfoLog(s));
+    document.getElementById('hud').textContent='SHADER COMPILE ERROR (see console)';
+    throw new Error('shader');
+  }
+  return s;
+}
+var prog=gl.createProgram();
+gl.attachShader(prog,compile(gl.VERTEX_SHADER,VS));
+gl.attachShader(prog,compile(gl.FRAGMENT_SHADER,FS));
+gl.linkProgram(prog);
+if(!gl.getProgramParameter(prog,gl.LINK_STATUS)){
+  console.error(gl.getProgramInfoLog(prog));
+  throw new Error('link');
+}
+gl.useProgram(prog);
+
+var U={};
+['uScene','uRes','uTime','uPlayer','uChaos','uAmp','uFreq','uSpeed','uAber','uGrain',
+ 'uGlitch','uShapes','uOnset','uShard','uScramble',
+ 'uTier','uRadius','uCurve','uSoft','uBreath','uGlow','uLevel','uTint','uIncoher','uHue','uSnap','uSeed']
+ .forEach(function(n){ U[n]=gl.getUniformLocation(prog,n); });
+U.uPerm0=gl.getUniformLocation(prog,'uPerm[0]');
+
+/* Seeded tile permutation: identity, then a rotated derangement of a chosen
+   subset. Fraction of tiles displaced = scramble. Stable until seed changes. */
+var perm=new Float32Array(30);
+function buildPerm(){
+  var i;
+  for(i=0;i<30;i++) perm[i]=i;
+  var k=Math.round(P.scramble*30);
+  if(k>=2){
+    var rnd=mulberry32(((P.sceneSeed^0xBEEF)>>>0)||1);
+    var idxs=[];
+    for(i=0;i<30;i++) idxs.push(i);
+    for(i=idxs.length-1;i>0;i--){
+      var j=Math.floor(rnd()*(i+1));
+      var t=idxs[i]; idxs[i]=idxs[j]; idxs[j]=t;
+    }
+    for(i=0;i<k;i++) perm[idxs[i]]=idxs[(i+1)%k];
+  }
+  gl.uniform1fv(U.uPerm0,perm);
+}
+
+var tex=gl.createTexture();
+gl.activeTexture(gl.TEXTURE0);
+gl.bindTexture(gl.TEXTURE_2D,tex);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+
+function uploadScene(){
+  drawScene();
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL,true);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,scene);
+}
+uploadScene();
+gl.uniform1i(U.uScene,0);
+gl.uniform2f(U.uRes,W,H);
+gl.uniform1f(U.uSeed,17.0);
+gl.viewport(0,0,W,H);
+
+/* ================= INTEGER SCALING ================= */
+var stage=document.getElementById('stage');
+function fit(){
+  var s=Math.max(1,Math.min(
+    Math.floor((stage.clientWidth-48)/W),
+    Math.floor((stage.clientHeight-48)/H)));
+  cv.style.width=(W*s)+'px';
+  cv.style.height=(H*s)+'px';
+  cv.dataset.scale=s;
+}
+window.addEventListener('resize',fit); fit();
+
+/* ================= POINTER = PLAYER, HOLD = DEEPEN ================= */
+var player={x:W*0.55,y:H*0.45};   // gl coords (y up)
+var holding=false, hold=0;
+var holdtag=document.getElementById('holdtag');
+
+function toTexel(e){
+  var r=cv.getBoundingClientRect();
+  var s=parseFloat(cv.dataset.scale)||1;
+  var x=(e.clientX-r.left)/s;
+  var y=(e.clientY-r.top)/s;
+  player.x=Math.max(0,Math.min(W,x));
+  player.y=Math.max(0,Math.min(H,H-y));   // flip to gl coords
+}
+cv.addEventListener('pointermove',toTexel);
+cv.addEventListener('pointerdown',function(e){ toTexel(e); holding=true; holdtag.classList.add('on'); cv.setPointerCapture(e.pointerId); });
+window.addEventListener('pointerup',function(){ holding=false; holdtag.classList.remove('on'); });
+
+/* ================= UI BINDING ================= */
+var SLIDERS=[
+  ['level',0],['chaos',2],['amp',1],['freq',1],['speed',2],['aber',1],['grain',2],
+  ['glitch',2],['shapes',2],['onset',2],['shard',2],['scramble',2],
+  ['tier',0],['radius',0],['curve',1],['soft',2],['breath',2],['glow',2],
+  ['tint',2],['incoher',2],['hue',0]
+];
+function syncUI(){
+  SLIDERS.forEach(function(sd){
+    var id=sd[0], dec=sd[1];
+    var el=document.getElementById(id);
+    el.value=P[id];
+    document.getElementById(id+'V').textContent=Number(P[id]).toFixed(dec);
+  });
+  document.getElementById('ckSnap').classList.toggle('on',!!P.snap);
+  document.documentElement.style.setProperty('--h',String(P.hue));
+  buildPerm();
+}
+SLIDERS.forEach(function(sd){
+  var id=sd[0], dec=sd[1];
+  document.getElementById(id).addEventListener('input',function(e){
+    P[id]=parseFloat(e.target.value);
+    document.getElementById(id+'V').textContent=P[id].toFixed(dec);
+    if(id==='hue') document.documentElement.style.setProperty('--h',String(P.hue));
+    if(id==='scramble') buildPerm();
+  });
+});
+document.getElementById('ckSnap').addEventListener('click',function(){
+  P.snap=P.snap?0:1; syncUI();
+});
+document.getElementById('btnScene').addEventListener('click',function(){
+  userPlate=null; P.sceneSeed=(P.sceneSeed*16807+11)%2147483647; uploadScene(); buildPerm();
+});
+
+document.querySelectorAll('[data-preset]').forEach(function(b){
+  b.addEventListener('click',function(){
+    var pr=PRESETS[b.dataset.preset];
+    Object.keys(pr).forEach(function(k){ P[k]=pr[k]; });   // merge, never replace
+    syncUI();
+  });
+});
+
+/* ================= CHAOS LEVEL LADDER (region axis) =================
+   Field/breakdown/palette only — never touches clarity params.
+   Regime changes, not just intensity:
+   1-3 liquid warp · 4 tight twisting + color-shift · 5 first rare tears
+   6 structural tearing · 7 first shards · 8-9 storm.                  */
+var CHAOS_LEVELS=[
+  { chaos:0.68, amp:12.0, freq:10.0, speed:0.80, aber:1.3, grain:0.11, glitch:0.00, shapes:0.00, onset:0.80, shard:0.0, scramble:0.00, tint:0.70, incoher:0.75, hue:250, level:1 },
+  { chaos:0.78, amp:13.0, freq:9.0,  speed:0.85, aber:1.8, grain:0.13, glitch:0.35, shapes:0.00, onset:0.35, shard:0.0, scramble:0.00, tint:0.75, incoher:0.85, hue:265, level:2 },
+  { chaos:0.86, amp:15.0, freq:9.5,  speed:0.95, aber:2.1, grain:0.14, glitch:0.65, shapes:0.00, onset:0.30, shard:0.0, scramble:0.00, tint:0.80, incoher:0.92, hue:280, level:3 },
+  { chaos:0.93, amp:17.0, freq:10.0, speed:1.05, aber:2.3, grain:0.16, glitch:0.80, shapes:0.45, onset:0.26, shard:0.0, scramble:0.00, tint:0.85, incoher:1.00, hue:295, level:4 },
+  { chaos:1.00, amp:20.0, freq:10.5, speed:1.15, aber:2.6, grain:0.18, glitch:0.95, shapes:0.75, onset:0.20, shard:0.0, scramble:0.00, tint:0.90, incoher:1.00, hue:310, level:5 },
+  { chaos:1.00, amp:24.0, freq:11.0, speed:1.40, aber:3.0, grain:0.22, glitch:1.00, shapes:1.00, onset:0.10, shard:0.0, scramble:0.00, tint:0.95, incoher:1.00, hue:325, level:6 },
+  { chaos:1.00, amp:24.0, freq:11.0, speed:1.50, aber:3.0, grain:0.24, glitch:1.00, shapes:1.00, onset:0.10, shard:0.0, scramble:0.35, tint:0.95, incoher:1.00, hue:335, level:7 },
+  { chaos:1.00, amp:24.0, freq:11.0, speed:1.60, aber:3.0, grain:0.26, glitch:1.00, shapes:1.00, onset:0.10, shard:0.0, scramble:0.60, tint:0.95, incoher:1.00, hue:345, level:8 },
+  { chaos:1.00, amp:24.0, freq:11.0, speed:1.70, aber:3.0, grain:0.28, glitch:1.00, shapes:1.00, onset:0.08, shard:1.0, scramble:0.85, tint:0.95, incoher:1.00, hue:355, level:9 }
+];
+document.querySelectorAll('[data-level]').forEach(function(b){
+  b.addEventListener('click',function(){
+    var lv=CHAOS_LEVELS[parseInt(b.dataset.level,10)-1];
+    Object.keys(lv).forEach(function(k){ P[k]=lv[k]; });   // merge, never replace
+    syncUI();
+  });
+});
+
+/* ================= ART PLATE UPLOAD ================= */
+var fileInput=document.getElementById('file');
+document.getElementById('btnUpload').addEventListener('click',function(){ fileInput.click(); });
+fileInput.addEventListener('change',function(e){ if(e.target.files[0]) loadPlate(e.target.files[0]); });
+['dragover','drop'].forEach(function(ev){
+  document.getElementById('wrap').addEventListener(ev,function(e){
+    e.preventDefault();
+    if(ev==='drop' && e.dataTransfer.files[0]) loadPlate(e.dataTransfer.files[0]);
+  });
+});
+function loadPlate(file){
+  var rd=new FileReader();
+  rd.onload=function(ev){
+    var img=new Image();
+    img.onload=function(){
+      var c=document.createElement('canvas'); c.width=W; c.height=H;
+      var cx=c.getContext('2d'); cx.imageSmoothingEnabled=false;
+      // cover fit
+      var sc=Math.max(W/img.width,H/img.height);
+      var dw=img.width*sc, dh=img.height*sc;
+      cx.drawImage(img,(W-dw)/2,(H-dh)/2,dw,dh);
+      userPlate=c; uploadScene();
+    };
+    img.src=ev.target.result;
+  };
+  rd.readAsDataURL(file);
+}
+
+/* ================= EXPORT ================= */
+document.getElementById('btnExport').addEventListener('click',function(){
+  var out={
+    _tool:'chaos-field-playground', _version:8,
+    _contract:'INTERFACE CONTRACT: the game reads these exact keys from chaos-field-config.json. Shader uniforms are named identically. Never hardcode these values; all tuning happens in this vocabulary, here or in the in-game debug overlay.',
+    _native:[W,H],
+    _model:'effectiveChaos = chaos * mix(residual, 1, steppedBandMask(t^bandCurve)); residual = clamp((regionLevel - tier)/3, 0, 1). Matched tier fully clears the center; each level of deficit leaves one third more chaos.',
+    chaosLevelLadder:CHAOS_LEVELS,
+    uniforms:{
+      regionLevel:P.level, chaos:P.chaos, warpAmpTexels:P.amp, warpScale:P.freq*0.01, timeSpeed:P.speed,
+      aberrationTexels:P.aber, grain:P.grain,
+      glitch:P.glitch, shapes:P.shapes, breakdownOnset:P.onset, shardColorWild:P.shard,
+      scrambleFraction:P.scramble, scrambleGrid:[6,5], scrambleTileTexels:[80,54],
+      attainmentTier:P.tier, clarityRadiusTexels:P.radius,
+      bandCurveExponent:P.curve, bandEdgeSoftness:P.soft,
+      radiusBreath:P.breath, ringGlow:P.glow,
+      paletteTint:P.tint, paletteIncoherence:P.incoher, chaosHueDeg:P.hue,
+      snapWarpToTexelGrid:!!P.snap
+    },
+    interaction:{ holdRadiusMultiplier:1.6, holdLerpPerFrame:0.06 }
+  };
+  var txt=JSON.stringify(out,null,2);
+  document.getElementById('json').value=txt;
+  if(navigator.clipboard) navigator.clipboard.writeText(txt).catch(function(){});
+});
+
+/* ================= LOOP ================= */
+var t0=performance.now(), frames=0, lastFps=performance.now();
+var fpsEl=document.getElementById('fps');
+
+function frame(now){
+  var t=(now-t0)/1000;
+  hold += ((holding?1:0)-hold)*0.06;
+  var radius=P.radius*(1+0.6*hold);
+
+  gl.uniform1f(U.uTime,t);
+  gl.uniform2f(U.uPlayer,player.x,player.y);
+  gl.uniform1f(U.uChaos,P.chaos);
+  gl.uniform1f(U.uAmp,P.amp);
+  gl.uniform1f(U.uFreq,P.freq);
+  gl.uniform1f(U.uSpeed,P.speed);
+  gl.uniform1f(U.uAber,P.aber);
+  gl.uniform1f(U.uGrain,P.grain);
+  gl.uniform1f(U.uGlitch,P.glitch);
+  gl.uniform1f(U.uShapes,P.shapes);
+  gl.uniform1f(U.uOnset,P.onset);
+  gl.uniform1f(U.uShard,P.shard);
+  gl.uniform1f(U.uScramble,P.scramble);
+  gl.uniform1f(U.uLevel,P.level);
+  gl.uniform1f(U.uTier,P.tier);
+  gl.uniform1f(U.uRadius,radius);
+  gl.uniform1f(U.uCurve,P.curve);
+  gl.uniform1f(U.uSoft,P.soft);
+  gl.uniform1f(U.uBreath,P.breath);
+  gl.uniform1f(U.uGlow,P.glow);
+  gl.uniform1f(U.uTint,P.tint);
+  gl.uniform1f(U.uIncoher,P.incoher);
+  gl.uniform1f(U.uHue,P.hue);
+  gl.uniform1f(U.uSnap,P.snap);
+
+  gl.drawArrays(gl.TRIANGLES,0,3);
+
+  frames++;
+  if(now-lastFps>500){
+    fpsEl.textContent=Math.round(frames*1000/(now-lastFps));
+    frames=0; lastFps=now;
+  }
+  requestAnimationFrame(frame);
+}
+syncUI();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -1,0 +1,804 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>pixel vortex (interactive wallpaper)</title>
+<style>
+html,body{margin:0;height:100%;background:#07040c;overflow:hidden;cursor:crosshair}
+canvas{width:100%;height:100%;display:block}
+
+#panel{position:fixed;top:14px;right:14px;width:266px;max-height:calc(100% - 28px);overflow-y:auto;
+  font:11px/1.4 ui-monospace,Consolas,monospace;color:#e8dcff;background:rgba(10,6,18,.86);
+  border:1px solid rgba(232,220,255,.20);border-radius:8px;padding:10px 12px 12px;
+  backdrop-filter:blur(6px);display:none;cursor:default}
+#panel.on{display:block}
+#panel h4{margin:11px 0 5px;font-size:10px;letter-spacing:.11em;text-transform:uppercase;
+  color:#a78fd0;font-weight:600;border-bottom:1px solid rgba(232,220,255,.13);padding-bottom:3px}
+#panel h4:first-child{margin-top:0}
+#panel .row{display:grid;grid-template-columns:70px 1fr 42px;align-items:center;gap:6px;margin:3px 0}
+#panel .row .nm{color:#c9badf;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#panel .row .vl{text-align:right;color:#fff5cc;font-variant-numeric:tabular-nums}
+#panel input[type=range]{width:100%;height:14px;margin:0;accent-color:#c79bff;background:transparent}
+#panel .btns{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}
+#panel button{flex:1 1 auto;font:inherit;color:#e8dcff;background:rgba(199,155,255,.14);
+  border:1px solid rgba(232,220,255,.24);border-radius:5px;padding:4px 7px;cursor:pointer}
+#panel button:hover{background:rgba(199,155,255,.28)}
+#panel input[type=text]{width:100%;margin-top:7px;font:10px/1.4 ui-monospace,Consolas,monospace;
+  color:#bfe8c8;background:rgba(0,0,0,.45);border:1px solid rgba(232,220,255,.18);
+  border-radius:5px;padding:4px 6px;box-sizing:border-box}
+#panel .hint{margin-top:8px;color:#8f7fb0;font-size:10px;line-height:1.45}
+</style>
+<canvas id="c"></canvas>
+<div id="panel"></div>
+
+<script>
+// ---------------------------------------------------------------------------
+// Pixel vortex -- a Noita-flavoured interactive wallpaper.
+//
+// The cursor spurts hot pixels the way a reaction throws sand in Noita:
+// discrete grains with real momentum, fast ones arcing far, most falling
+// short. They cool from white-hot to the colour of the mandala underneath
+// them as they slow.
+//
+// Two kinds of swirl, and neither of them is the mandala's centre:
+//   - the cursor axis, a circulation cell that rides along with the pointer,
+//     so grains wind around wherever you happen to be;
+//   - free whirlpools, short-lived cells born either among the grains or near
+//     the cursor (the "at cursor" slider picks), which spin up and dissipate.
+// The symmetry pass then repeats each of those in every slot, so what you get
+// is a ring of off-centre axes rather than one pivot in the middle.
+//
+// Passes:
+//   BAKE    once -- the mandala into a square texture (swap for a painting).
+//   FADE    half res -- the glow buffer, short decay so it is a comet tail.
+//   GRAINS  the particles soft and fat into that buffer, for the light.
+//   COMP    mandala + glow to the screen.
+//   GRAINS  again, crisp: hard squares snapped to a pixel grid, straight onto
+//           the screen. The chunky look only survives because this pass never
+//           goes through the low-res buffer.
+//
+// The wisp version of this idea is mandala.html and is unaffected.
+// ---------------------------------------------------------------------------
+
+// Every knob lives here and every knob is a URL parameter. The panel writes
+// back into CFG, and "copy link" turns the current state into a URL, which is
+// what you hand to Lively once you like a setting.
+const DEFAULTS = {
+  // pattern
+  fold:     8,       // symmetry slots. 1 disables replication entirely
+  palette:  0,       // 0 jewel, 1 ember, 2 sea, 3 dusk
+  mirror:   1,       // reflections as well as rotations
+  spin:     0.004,   // rad/s for the whole pattern
+  zoom:     1.0,
+  speed:    1.0,     // global time scale
+
+  // spray
+  px:       6,       // grain size in device pixels. the chunk
+  rate:     170,     // grains per second while the cursor moves
+  puff:     11,      // grains per pop. emission is bursty, not steady
+  spread:   0.75,    // half-angle of a pop's cone, radians
+  launch:   1.0,     // multiplier on ejection speed
+  life:     2.6,     // grain lifetime, seconds
+  weight:   1.0,     // inertial heaviness: ignores forces, coasts longer
+  drag:     1.35,    // velocity damping per second, before weight
+  maxBurst: 90,      // cap per frame, so a flick cannot spike
+
+  // the axis that follows the cursor
+  axis:     2.2,     // circulation strength. negative spins the other way
+  axisR:    0.28,    // core radius, art units
+
+  // free whirlpools
+  vortRate: 2.2,     // per second while moving
+  vortStr:  3.0,     // circulation, art units/sec^2
+  vortR:    0.22,    // core radius, art units
+  vortLife: 2.6,     // seconds, including spin-up and dissipation
+  anchor:   0.40,    // 0 = born among the grains, 1 = born at the cursor
+
+  // field
+  turb:     0.05,    // background curl, keeps dead air moving
+
+  // look
+  glow:     0.55,    // brightness of the soft layer
+  grain:    0.85,    // brightness of the crisp layer
+  decay:    0.90,    // glow survival per frame. low = crisp
+  soften:   0.030,
+  sim:      0.5,     // glow buffer scale vs. canvas
+  hud:      1,       // 0 starts with the panel hidden
+};
+const Q = new URLSearchParams(location.search);
+const CFG = {};
+for(const k in DEFAULTS){ const v = Q.get(k); CFG[k] = v === null ? DEFAULTS[k] : parseFloat(v); }
+const PAL_COUNT = 4;
+
+const canvas = document.getElementById("c");
+const panel = document.getElementById("panel");
+const gl = canvas.getContext("webgl2", { alpha: false, antialias: false, preserveDrawingBuffer: true });
+if (!gl) document.body.textContent = "WebGL2 not available";
+
+const hdr = !!gl.getExtension("EXT_color_buffer_float");
+const TEX_FMT = hdr ? gl.RGBA16F : gl.RGBA8;
+
+// --- shared GLSL -----------------------------------------------------------
+const COMMON = `
+#define PI  3.14159265359
+#define TAU 6.28318530718
+float hash21(vec2 p){ p = fract(p*vec2(123.34,345.45)); p += dot(p, p+34.345); return fract(p.x*p.y); }
+float vnoise(vec2 p){
+  vec2 i = floor(p), f = fract(p), u = f*f*(3.0-2.0*f);
+  return mix(mix(hash21(i), hash21(i+vec2(1,0)), u.x),
+             mix(hash21(i+vec2(0,1)), hash21(i+vec2(1,1)), u.x), u.y);
+}
+float fbm(vec2 p, int oct){
+  float s = 0.0, a = 0.5; mat2 m = mat2(0.8,0.6,-0.6,0.8);
+  for(int i=0;i<6;i++){ if(i>=oct) break; s += a*vnoise(p); p = m*p*2.03; a *= 0.5; }
+  return s;
+}
+float foldAngle(float a, float k){ float h = PI/k; return abs(mod(a+h, 2.0*h) - h); }
+vec3 pal(float t, vec3 a, vec3 b, vec3 c, vec3 d){ return a + b*cos(TAU*(c*t+d)); }
+`;
+
+const VERT_QUAD = `#version 300 es
+in vec2 v; out vec2 uv;
+void main(){ uv = v*0.5+0.5; gl_Position = vec4(v, 0.0, 1.0); }`;
+
+// --- BAKE: the mandala -----------------------------------------------------
+const FRAG_BAKE = `#version 300 es
+precision highp float;
+in vec2 uv; out vec4 fragColor;
+uniform float u_fold, u_extent; uniform int u_pal;
+${COMMON}
+
+vec3 scheme(float t){
+  if(u_pal == 1) return pal(t, vec3(0.52,0.30,0.18), vec3(0.48,0.32,0.16), vec3(1.0,0.9,0.7), vec3(0.0,0.12,0.22));
+  if(u_pal == 2) return pal(t, vec3(0.22,0.42,0.48), vec3(0.28,0.34,0.36), vec3(1.0,1.0,0.9), vec3(0.4,0.22,0.06));
+  if(u_pal == 3) return pal(t, vec3(0.30,0.26,0.34), vec3(0.34,0.28,0.22), vec3(0.8,0.9,1.0), vec3(0.08,0.18,0.42));
+  return pal(t, vec3(0.46,0.34,0.52), vec3(0.42,0.34,0.44), vec3(1.0,1.0,1.0), vec3(0.0,0.22,0.48));
+}
+float beads(float r, float a, float rb, float k, float sz){
+  float af = foldAngle(a, k);
+  float d = length(vec2(cos(af), sin(af))*r - vec2(rb, 0.0));
+  return smoothstep(sz, 0.0, d);
+}
+float hair(float r, float r0, float w){ return smoothstep(w, 0.0, abs(r - r0)); }
+vec3 course(float r, float a, float k, float rc, float hr, float hu, float tip,
+            vec3 fill, vec3 edge, float veins){
+  float af = foldAngle(a, k);
+  float u = af*r, v = r - rc;
+  float wu = hu * (1.0 - tip*clamp(v/hr, -1.0, 1.0));
+  float e = length(vec2(v/hr, u/max(wu, 1e-4)));
+  float f = 1.0 - smoothstep(0.84, 1.0, e);
+  float o = smoothstep(0.11, 0.0, abs(e - 1.0));
+  float vn = 0.70 + 0.30*cos(veins*u/max(hu, 1e-4));
+  vec3 c = fill*f*vn + edge*o*0.9;
+  c *= 1.0 + 0.40*f*smoothstep(0.0, -hr, v);
+  return c;
+}
+
+vec3 mandala(vec2 pIn){
+  vec2 p = pIn * 1.37;
+  vec2 w = p + 0.028*(vec2(fbm(p*3.2, 4), fbm(p*3.2 + vec2(5.2,1.3), 4)) - 0.5);
+  float r = length(w), a = atan(w.y, w.x);
+  float K = max(u_fold, 1.0);
+  const vec3 GOLD = vec3(1.00, 0.84, 0.52);
+  vec3 col = vec3(0.0);
+
+  float rays = 0.5 + 0.5*cos(K*2.0*a);
+  col += scheme(0.55) * (0.085 + 0.075*rays) * smoothstep(2.9, 0.2, r);
+  col += scheme(0.28) * 0.035 * (0.5 + 0.5*cos(r*52.0)) * smoothstep(1.5, 0.1, r);
+
+  col += vec3(1.00, 0.93, 0.76) * exp(-r*13.0) * 0.75;
+  col += course(r, a, K, 0.105, 0.075, 0.040, 0.45, scheme(0.08)*1.5, GOLD, 26.0);
+  col += GOLD * beads(r, a, 0.185, K, 0.016) * 0.9;
+  col += GOLD * hair(r, 0.215, 0.0035) * 0.5;
+
+  col += course(r, a, K, 0.320, 0.105, 0.072, 0.50, scheme(0.30)*1.35, GOLD, 30.0);
+  col += course(r, a, K, 0.320, 0.045, 0.026, 0.30, scheme(0.62)*1.30, GOLD*0.0, 18.0);
+  col += GOLD * hair(r, 0.445, 0.0035) * 0.55;
+
+  col += course(r, a, K*2.0, 0.520, 0.062, 0.036, 0.55, scheme(0.72)*1.25, GOLD, 22.0);
+  col += GOLD * beads(r, a, 0.600, K*2.0, 0.013) * 0.8;
+  col += GOLD * hair(r, 0.640, 0.0030) * 0.45;
+
+  col += course(r, a, K*2.0, 0.770, 0.098, 0.052, 0.60, scheme(0.46)*1.30, GOLD, 26.0);
+  col += course(r, a, K*2.0, 0.770, 0.042, 0.020, 0.35, scheme(0.90)*1.25, GOLD*0.0, 16.0);
+
+  col += GOLD * hair(r, 0.905, 0.0030) * 0.5;
+  col += course(r, a, K*3.0, 1.010, 0.082, 0.038, 0.70, scheme(0.16)*1.20, GOLD, 20.0);
+  col += GOLD * beads(r, a, 1.115, K*3.0, 0.011) * 0.75;
+  col += GOLD * hair(r, 1.155, 0.0028) * 0.45;
+  col += GOLD * hair(r, 1.175, 0.0028) * 0.30;
+
+  col += course(r, a, K*6.0, 1.290, 0.055, 0.018, 0.75, scheme(0.58)*0.75, GOLD*0.5, 14.0)
+         * smoothstep(1.55, 1.20, r);
+
+  col *= 0.84 + 0.32*fbm(w*13.0, 4);
+  col += scheme(fbm(w*0.7, 3)) * 0.045;
+  col *= smoothstep(2.45, 0.45, r)*0.75 + 0.25;
+  return col;
+}
+
+void main(){
+  vec2 p = (uv*2.0 - 1.0) * u_extent;
+  vec3 c = mandala(p);
+  c = 1.0 - exp(-c*1.25);
+  fragColor = vec4(pow(max(c, 0.0), vec3(0.92)), 1.0);
+}`;
+
+// --- FADE ------------------------------------------------------------------
+const FRAG_FADE = `#version 300 es
+precision highp float;
+in vec2 uv; out vec4 fragColor;
+uniform sampler2D u_prev;
+uniform vec2 u_res;
+uniform float u_dt, u_decay, u_soften;
+void main(){
+  vec2 px = 1.0/u_res;
+  vec4 c = texture(u_prev, uv) * (1.0 - 4.0*u_soften)
+         + (texture(u_prev, uv + vec2(px.x,0.0)) + texture(u_prev, uv - vec2(px.x,0.0))
+          + texture(u_prev, uv + vec2(0.0,px.y)) + texture(u_prev, uv - vec2(0.0,px.y))) * u_soften;
+  c *= pow(u_decay, u_dt*60.0);
+  vec2 f = smoothstep(vec2(0.0), vec2(0.02), uv) * smoothstep(vec2(0.0), vec2(0.02), 1.0 - uv);
+  fragColor = c * f.x * f.y;
+}`;
+
+// --- GRAINS: one program, drawn twice --------------------------------------
+const VERT_GRAIN = `#version 300 es
+in vec2 a_pos; in float a_heat; in float a_alpha;
+uniform sampler2D u_mandala;
+uniform vec2 u_targetRes;
+uniform float u_aspect, u_size, u_extent, u_spin, u_snapPx, u_amp;
+out vec3 v_col; out float v_a;
+mat2 rotM2(float a){ float c = cos(a), s = sin(a); return mat2(c,-s,s,c); }
+void main(){
+  vec2 m = rotM2(u_spin) * a_pos;
+  vec3 base = textureLod(u_mandala, (m/u_extent)*0.5 + 0.5, 0.0).rgb;
+  float l = dot(base, vec3(0.299,0.587,0.114));
+  base = max(mix(vec3(l), base, 1.55), 0.0);
+  vec3 hot = mix(vec3(1.00,0.48,0.12), vec3(1.00,0.96,0.86), smoothstep(0.45, 1.0, a_heat));
+  v_col = mix(base*1.25, hot, a_heat) * u_amp;
+  v_a = a_alpha;
+
+  vec2 clip = a_pos / vec2(u_aspect, 1.0);
+  if(u_snapPx > 0.5){
+    vec2 scr = (clip*0.5 + 0.5) * u_targetRes;
+    scr = (floor(scr/u_snapPx) + 0.5) * u_snapPx;
+    clip = (scr/u_targetRes)*2.0 - 1.0;
+  }
+  gl_Position = vec4(clip, 0.0, 1.0);
+  gl_PointSize = u_size;
+}`;
+const FRAG_GRAIN = `#version 300 es
+precision highp float;
+in vec3 v_col; in float v_a; out vec4 fragColor;
+uniform float u_hard;
+void main(){
+  float d = length(gl_PointCoord - 0.5) * 2.0;
+  float soft = exp(-d*d*3.0) * smoothstep(1.0, 0.0, d);
+  float g = mix(soft, 1.0, u_hard);
+  fragColor = vec4(max(v_col, 0.0)*v_a*g, g*v_a);
+}`;
+
+// --- COMPOSITE -------------------------------------------------------------
+const FRAG_COMP = `#version 300 es
+precision highp float;
+in vec2 uv; out vec4 fragColor;
+uniform sampler2D u_mandala, u_trail;
+uniform float u_aspect, u_zoom, u_extent, u_spin, u_glow;
+mat2 rotM2(float a){ float c = cos(a), s = sin(a); return mat2(c,-s,s,c); }
+void main(){
+  vec2 p = (uv*2.0 - 1.0) * vec2(u_aspect, 1.0) / u_zoom;
+  vec3 base = texture(u_mandala, ((rotM2(u_spin)*p)/u_extent)*0.5 + 0.5).rgb;
+  vec3 ink  = max(texture(u_trail, uv).rgb, 0.0);
+  float li  = dot(ink, vec3(0.333));
+  ink = max(mix(vec3(li), ink, 1.35), 0.0);
+  vec3 col  = base*(1.0 + 0.18*min(li, 1.5)) + ink*u_glow;
+  col = 1.0 - exp(-col*1.3);
+  fragColor = vec4(pow(col, vec3(0.9)), 1.0);
+}`;
+
+// --- GL plumbing -----------------------------------------------------------
+function sh(type, src){
+  const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+  if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)){
+    const log = gl.getShaderInfoLog(s);
+    console.error("shader compile failed:", log);
+    console.error(src.split("\n").map((l,i) => (i+1) + ": " + l).join("\n"));
+    throw new Error(log);
+  }
+  return s;
+}
+function prog(vs, fs, attrs){
+  const p = gl.createProgram();
+  gl.attachShader(p, sh(gl.VERTEX_SHADER, vs));
+  gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs));
+  attrs.forEach((n,i) => gl.bindAttribLocation(p, i, n));
+  gl.linkProgram(p);
+  if(!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  const cache = {};
+  const u = new Proxy({}, { get: (_, k) => (k in cache ? cache[k] : (cache[k] = gl.getUniformLocation(p, k))) });
+  return { p, u };
+}
+const P_BAKE  = prog(VERT_QUAD, FRAG_BAKE, ["v"]);
+const P_FADE  = prog(VERT_QUAD, FRAG_FADE, ["v"]);
+const P_GRAIN = prog(VERT_GRAIN, FRAG_GRAIN, ["a_pos","a_heat","a_alpha"]);
+const P_COMP  = prog(VERT_QUAD, FRAG_COMP, ["v"]);
+
+const quadBuf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+const vaoQuad = gl.createVertexArray();
+gl.bindVertexArray(vaoQuad);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+const MAX_PTS = 40000;
+const ptData = new Float32Array(MAX_PTS*4);
+const ptBuf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, ptBuf);
+gl.bufferData(gl.ARRAY_BUFFER, ptData.byteLength, gl.DYNAMIC_DRAW);
+const vaoPts = gl.createVertexArray();
+gl.bindVertexArray(vaoPts);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 16, 0);
+gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 1, gl.FLOAT, false, 16, 8);
+gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 1, gl.FLOAT, false, 16, 12);
+gl.bindVertexArray(null);
+
+function target(w, h, fmt){
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texStorage2D(gl.TEXTURE_2D, 1, fmt, w, h);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const f = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
+  if(gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) console.error("incomplete framebuffer", w, h);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  return { t, f, w, h };
+}
+function drawQuad(){ gl.bindVertexArray(vaoQuad); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); }
+function use(o, fb){
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb ? fb.f : null);
+  gl.viewport(0, 0, fb ? fb.w : canvas.width, fb ? fb.h : canvas.height);
+  gl.useProgram(o.p);
+}
+
+// --- sizing ----------------------------------------------------------------
+const EXTENT = 2.3;
+let bake = null, trail = [], aspect = 1;
+
+function clearTrails(){
+  trail.forEach(tt => { use(P_FADE, tt); gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT); });
+}
+function resize(){
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  const w = Math.max(2, Math.floor(canvas.clientWidth * dpr));
+  const h = Math.max(2, Math.floor(canvas.clientHeight * dpr));
+  if(canvas.width === w && canvas.height === h && bake) return;
+  canvas.width = w; canvas.height = h; aspect = w/h;
+
+  trail.forEach(tt => { if(tt){ gl.deleteTexture(tt.t); gl.deleteFramebuffer(tt.f); } });
+  const sw = Math.max(64, Math.floor(w*CFG.sim)), shh = Math.max(64, Math.floor(h*CFG.sim));
+  trail = [target(sw, shh, TEX_FMT), target(sw, shh, TEX_FMT)];
+  clearTrails();
+
+  if(!bake){
+    const s = Math.min(1536, Math.max(768, Math.max(w, h)));
+    bake = target(s, s, gl.RGBA8);
+    rebake();
+  }
+}
+function rebake(){
+  use(P_BAKE, bake);
+  gl.uniform1f(P_BAKE.u.u_fold, Math.max(1, Math.round(CFG.fold)));
+  gl.uniform1i(P_BAKE.u.u_pal, ((CFG.palette|0) % PAL_COUNT + PAL_COUNT) % PAL_COUNT);
+  gl.uniform1f(P_BAKE.u.u_extent, EXTENT);
+  drawQuad();
+}
+window.addEventListener("resize", resize);
+
+// --- cursor ----------------------------------------------------------------
+const mouse = { x: 0, y: 0, px: 0, py: 0, seen: false };
+addEventListener("pointermove", e => {
+  // do not spray while tweaking. the Node check matters: contains() throws on
+  // a non-Node target, which a synthetic event can easily have
+  if(e.target instanceof Node && panel.contains(e.target)) return;
+  const x = (e.clientX/canvas.clientWidth - 0.5) * 2 * aspect;
+  const y = -(e.clientY/canvas.clientHeight - 0.5) * 2;
+  if(!mouse.seen){ mouse.px = x; mouse.py = y; mouse.seen = true; }
+  mouse.x = x; mouse.y = y;
+});
+
+// --- background curl -------------------------------------------------------
+const WAVES = (() => {
+  let s = 20260918;
+  const rnd = () => (s = (s*1664525 + 1013904223) >>> 0, s/4294967296);
+  const out = [];
+  for(let i=0;i<8;i++){
+    const k = 1.6*Math.pow(1.45, i), a = rnd()*Math.PI*2;
+    out.push({ wx: Math.cos(a)*k, wy: Math.sin(a)*k, amp: 0.9/k, ph: rnd()*6.2832, sp: 0.2 + rnd()*0.35 });
+  }
+  return out;
+})();
+let flowX = 0, flowY = 0;
+function flowAt(x, y, t){
+  let gx = 0, gy = 0;
+  for(let i=0;i<WAVES.length;i++){
+    const w = WAVES[i];
+    const c = Math.cos(x*w.wx + y*w.wy + w.ph + t*w.sp) * w.amp;
+    gx += c*w.wx; gy += c*w.wy;
+  }
+  flowX = gy; flowY = -gx;
+}
+
+// --- whirlpools ------------------------------------------------------------
+// Short-lived circulation cells with an envelope that spins up, holds, then
+// dissipates. A vortex that just switches off looks like a bug rather than
+// something that ran out of energy.
+const VMAX = 30;
+const vX = new Float32Array(VMAX), vY = new Float32Array(VMAX);
+const vStr = new Float32Array(VMAX), vR = new Float32Array(VMAX);
+const vAge = new Float32Array(VMAX), vLife = new Float32Array(VMAX);
+const vEnv = new Float32Array(VMAX);
+let vCount = 0, vortAcc = 0;
+
+function smooth01(x){ x = Math.min(1, Math.max(0, x)); return x*x*(3 - 2*x); }
+function killVortex(i){
+  vCount--;
+  vX[i]=vX[vCount]; vY[i]=vY[vCount]; vStr[i]=vStr[vCount];
+  vR[i]=vR[vCount]; vAge[i]=vAge[vCount]; vLife[i]=vLife[vCount];
+}
+function spawnVortex(x, y){
+  if(vCount >= VMAX){
+    let worst = 0, best = -1;
+    for(let i=0;i<vCount;i++){ const f = vAge[i]/vLife[i]; if(f > best){ best = f; worst = i; } }
+    killVortex(worst);
+  }
+  const i = vCount++;
+  vX[i] = x; vY[i] = y;
+  vStr[i] = (Math.random() < 0.5 ? -1 : 1) * CFG.vortStr * (0.6 + 0.8*Math.random());
+  vR[i] = Math.max(0.01, CFG.vortR * (0.6 + 0.9*Math.random()));
+  vAge[i] = 0; vLife[i] = Math.max(0.15, CFG.vortLife * (0.6 + 0.8*Math.random()));
+}
+function stepVortices(dt){
+  for(let i=0;i<vCount;i++){
+    vAge[i] += dt;
+    if(vAge[i] >= vLife[i]){ killVortex(i); i--; continue; }
+    const f = vAge[i]/vLife[i];
+    vEnv[i] = smooth01(f/0.18) * (1.0 - smooth01((f - 0.50)/0.50));
+  }
+}
+
+// --- grains ----------------------------------------------------------------
+const PMAX = 1800;
+const pX = new Float32Array(PMAX), pY = new Float32Array(PMAX);
+const pVX = new Float32Array(PMAX), pVY = new Float32Array(PMAX);
+const pAge = new Float32Array(PMAX), pLife = new Float32Array(PMAX);
+const pSeed = new Float32Array(PMAX);
+let alive = 0, emitAcc = 0;
+
+function spawn(x, y, vx, vy, life){
+  if(alive >= PMAX) return;
+  const i = alive++;
+  pX[i]=x; pY[i]=y; pVX[i]=vx; pVY[i]=vy; pAge[i]=0; pLife[i]=life; pSeed[i]=Math.random()*6.283;
+}
+function kill(i){
+  alive--;
+  pX[i]=pX[alive]; pY[i]=pY[alive]; pVX[i]=pVX[alive]; pVY[i]=pVY[alive];
+  pAge[i]=pAge[alive]; pLife[i]=pLife[alive]; pSeed[i]=pSeed[alive];
+}
+
+// Weight is mass. Acceleration is force over mass, and the drag force is
+// proportional to velocity, so a heavy grain both ignores the swirls more and
+// coasts for longer once thrown. One slider, both behaviours, which is what
+// heaviness actually means.
+function stepGrains(t, dt){
+  const invW = 1/Math.max(0.05, CFG.weight);
+  const drag = Math.exp(-CFG.drag*invW*dt);
+  const axX = mouse.x, axY = mouse.y;
+  const axisR2 = Math.max(0.01, CFG.axisR)*Math.max(0.01, CFG.axisR);
+  const useAxis = CFG.axis !== 0;
+  for(let i=0;i<alive;i++){
+    let ax = 0, ay = 0;
+
+    // the axis that rides with the cursor
+    if(useAxis){
+      const dx = pX[i]-axX, dy = pY[i]-axY, r2 = dx*dx + dy*dy;
+      if(r2 <= axisR2*6.25){
+        const r = Math.sqrt(r2) + 1e-4;
+        const s = CFG.axis * Math.exp(-r2/axisR2);
+        ax += (-dy/r)*s; ay += (dx/r)*s;
+        const sm = Math.abs(s)*0.30;                 // and a pull toward the eye
+        ax += (-dx/r)*sm; ay += (-dy/r)*sm;
+      }
+    }
+
+    // free whirlpools
+    for(let k=0;k<vCount;k++){
+      const dx = pX[i]-vX[k], dy = pY[i]-vY[k];
+      const R = vR[k], r2 = dx*dx + dy*dy;
+      if(r2 > R*R*6.25) continue;
+      const r = Math.sqrt(r2) + 1e-4;
+      const s = vStr[k] * Math.exp(-r2/(R*R)) * vEnv[k];
+      ax += (-dy/r)*s;  ay += (dx/r)*s;
+      const sm = Math.abs(s)*0.30;
+      ax += (-dx/r)*sm; ay += (-dy/r)*sm;
+    }
+
+    if(CFG.turb > 0){
+      flowAt(pX[i], pY[i], t);
+      ax += flowX*CFG.turb; ay += flowY*CFG.turb;
+    }
+
+    pVX[i] = (pVX[i] + ax*invW*dt)*drag;
+    pVY[i] = (pVY[i] + ay*invW*dt)*drag;
+    pX[i] += pVX[i]*dt; pY[i] += pVY[i]*dt;
+    pAge[i] += dt;
+    if(pAge[i] >= pLife[i] || pX[i]*pX[i] + pY[i]*pY[i] > 6.25){ kill(i); i--; }
+  }
+}
+
+// Pops, not a stream. A reaction in Noita throws a clump of sand at once in
+// roughly one direction; a steady drizzle of single grains reads as dust.
+const BURST_MIN = 0.12, BURST_MAX = 2.30;
+function emitFromCursor(t, dt){
+  const dx = mouse.x - mouse.px, dy = mouse.y - mouse.py;
+  const dist = Math.hypot(dx, dy);
+  const speed = Math.min(1, dist/Math.max(dt, 1e-3)/0.8);
+  const mvx = dx/Math.max(dt, 1e-3), mvy = dy/Math.max(dt, 1e-3);
+
+  const puff = Math.max(1, Math.round(CFG.puff));
+  emitAcc += (CFG.rate/puff)*(0.05 + 0.95*speed)*dt;
+  let budget = CFG.maxBurst;
+  while(emitAcc >= 1 && budget > 0){
+    emitAcc -= 1;
+    const f = Math.random();
+    const bx = mouse.px + dx*f, by = mouse.py + dy*f;
+    const dir = Math.random()*Math.PI*2;
+    const spread = CFG.spread*(0.7 + 0.6*Math.random());
+    const cnt = Math.min(budget, Math.round(puff*(0.6 + 0.8*Math.random())));
+    budget -= cnt;
+    for(let i=0;i<cnt;i++){
+      const a = dir + (Math.random()*2 - 1)*spread;
+      const sp = (BURST_MIN + Math.pow(Math.random(), 2.0)*(BURST_MAX - BURST_MIN)) * CFG.launch;
+      spawn(bx, by, Math.cos(a)*sp + mvx*0.22, Math.sin(a)*sp + mvy*0.22,
+            Math.max(0.1, CFG.life*(0.45 + Math.random()*0.9)));
+    }
+  }
+
+  vortAcc += CFG.vortRate*(0.02 + 0.98*speed)*dt;
+  while(vortAcc >= 1){
+    vortAcc -= 1;
+    if(alive > 0 && Math.random() >= CFG.anchor){
+      const j = (Math.random()*alive)|0;          // born where the grains are
+      spawnVortex(pX[j], pY[j]);
+    } else {
+      const a = Math.random()*Math.PI*2, d = 0.08 + Math.random()*0.20;
+      spawnVortex(mouse.x + Math.cos(a)*d, mouse.y + Math.sin(a)*d);
+    }
+  }
+  mouse.px = mouse.x; mouse.py = mouse.y;
+}
+
+function buildPoints(t){
+  const G = Math.max(1, Math.round(CFG.fold));
+  const mir = CFG.mirror ? 2 : 1;
+  const cap = Math.min(alive, Math.floor(MAX_PTS/(G*mir)));
+  let n = 0;
+  for(let i=0;i<cap;i++){
+    const ag = pAge[i]/pLife[i];
+    const sp = Math.hypot(pVX[i], pVY[i]);
+    const heat = Math.min(1, sp/1.5) * (0.35 + 0.65*(1 - ag));
+    const flicker = 0.80 + 0.20*Math.sin(t*19.0 + pSeed[i]);
+    const a = Math.pow(1 - ag, 1.15) * flicker;
+    const x = pX[i], y = pY[i];
+    for(let g=0; g<G; g++){
+      const ga = g*Math.PI*2/G, ca = Math.cos(ga), sa = Math.sin(ga);
+      let o = n*4;
+      ptData[o] = x*ca - y*sa; ptData[o+1] = x*sa + y*ca; ptData[o+2] = heat; ptData[o+3] = a; n++;
+      if(CFG.mirror){
+        o = n*4;
+        ptData[o] = x*ca + y*sa; ptData[o+1] = x*sa - y*ca; ptData[o+2] = heat; ptData[o+3] = a; n++;
+      }
+    }
+  }
+  return n;
+}
+
+function drawGrains(n, fb, sizePx, hard, snapPx, amp, spin){
+  gl.useProgram(P_GRAIN.p);
+  gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, bake.t);
+  gl.uniform1i(P_GRAIN.u.u_mandala, 0);
+  gl.uniform2f(P_GRAIN.u.u_targetRes, fb ? fb.w : canvas.width, fb ? fb.h : canvas.height);
+  gl.uniform1f(P_GRAIN.u.u_aspect, aspect);
+  gl.uniform1f(P_GRAIN.u.u_size, sizePx);
+  gl.uniform1f(P_GRAIN.u.u_extent, EXTENT);
+  gl.uniform1f(P_GRAIN.u.u_spin, spin);
+  gl.uniform1f(P_GRAIN.u.u_snapPx, snapPx);
+  gl.uniform1f(P_GRAIN.u.u_amp, amp);
+  gl.uniform1f(P_GRAIN.u.u_hard, hard);
+  gl.bindVertexArray(vaoPts);
+  gl.drawArrays(gl.POINTS, 0, n);
+  gl.disable(gl.BLEND);
+}
+
+// --- loop ------------------------------------------------------------------
+let src = 0, paused = false, t = 0, last = performance.now();
+resize();
+
+function frame(now){
+  const raw = Math.min((now - last)/1000, 0.05); last = now;
+  const dt = paused ? 0 : raw*CFG.speed;
+  t += dt;
+  resize();
+
+  const dst = 1 - src;
+  const spin = t*CFG.spin;
+
+  if(!paused){
+    emitFromCursor(t, Math.max(raw, 1e-3)*CFG.speed);
+    stepVortices(dt);
+    stepGrains(t, dt);
+  }
+  const n = paused ? 0 : buildPoints(t);
+  if(n){
+    gl.bindBuffer(gl.ARRAY_BUFFER, ptBuf);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, ptData, 0, n*4);
+  }
+
+  use(P_FADE, trail[dst]);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, trail[src].t);
+  gl.uniform1i(P_FADE.u.u_prev, 0);
+  gl.uniform2f(P_FADE.u.u_res, trail[dst].w, trail[dst].h);
+  gl.uniform1f(P_FADE.u.u_dt, dt);
+  gl.uniform1f(P_FADE.u.u_decay, CFG.decay);
+  gl.uniform1f(P_FADE.u.u_soften, CFG.soften);
+  drawQuad();
+  if(n){
+    gl.bindFramebuffer(gl.FRAMEBUFFER, trail[dst].f);
+    gl.viewport(0, 0, trail[dst].w, trail[dst].h);
+    drawGrains(n, trail[dst], Math.max(2, CFG.px*CFG.sim*1.3), 0.0, 0.0, 0.20, spin);
+  }
+
+  use(P_COMP, null);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, bake.t);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, trail[dst].t);
+  gl.uniform1i(P_COMP.u.u_mandala, 0); gl.uniform1i(P_COMP.u.u_trail, 1);
+  gl.uniform1f(P_COMP.u.u_aspect, aspect);
+  gl.uniform1f(P_COMP.u.u_zoom, CFG.zoom);
+  gl.uniform1f(P_COMP.u.u_extent, EXTENT);
+  gl.uniform1f(P_COMP.u.u_spin, spin);
+  gl.uniform1f(P_COMP.u.u_glow, CFG.glow);
+  drawQuad();
+  if(n){
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    drawGrains(n, null, CFG.px, 1.0, CFG.px, CFG.grain, spin);
+  }
+
+  src = dst;
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// --- control panel ---------------------------------------------------------
+// [key, label, min, max, step, rebakes]
+const GROUPS = [
+  ["spray", [
+    ["rate",     "rate",       20,   900,  10,    false],
+    ["puff",     "pop size",    1,    40,   1,    false],
+    ["launch",   "speed",    0.10,  3.00,  0.05,  false],
+    ["weight",   "weight",   0.10,  5.00,  0.05,  false],
+    ["drag",     "drag",     0.05,  5.00,  0.05,  false],
+    ["spread",   "cone",     0.05,  3.14,  0.05,  false],
+    ["life",     "life",     0.30,  9.00,  0.10,  false],
+    ["px",       "grain px",    1,    16,   1,    false],
+  ]],
+  ["cursor axis", [
+    ["axis",     "strength", -10.0, 10.0,  0.20,  false],
+    ["axisR",    "radius",    0.03,  1.20, 0.01,  false],
+  ]],
+  ["free whirlpools", [
+    ["vortRate", "rate",      0.00, 10.00, 0.10,  false],
+    ["vortStr",  "strength",  0.00, 14.00, 0.20,  false],
+    ["vortR",    "radius",    0.03,  1.00, 0.01,  false],
+    ["vortLife", "life",      0.20,  9.00, 0.10,  false],
+    ["anchor",   "at cursor", 0.00,  1.00, 0.05,  false],
+    ["turb",     "turbulence",0.00,  0.60, 0.01,  false],
+  ]],
+  ["pattern and look", [
+    ["fold",     "symmetry",     1,    16,  1,    true],
+    ["spin",     "spin",     -0.05,  0.05, 0.001, false],
+    ["glow",     "glow",      0.00,  2.50, 0.05,  false],
+    ["grain",    "grain",     0.00,  2.50, 0.05,  false],
+    ["decay",    "trail",     0.75,  0.999,0.002, false],
+    ["speed",    "time",      0.10,  2.50, 0.05,  false],
+  ]],
+];
+
+function decimals(step){ return step >= 1 ? 0 : (step >= 0.05 ? 2 : 3); }
+const linkBox = document.createElement("input");
+linkBox.type = "text"; linkBox.readOnly = true;
+
+function updateLink(){
+  const q = [];
+  for(const k in DEFAULTS){
+    if(k === "hud") continue;
+    if(Math.abs(CFG[k] - DEFAULTS[k]) > 1e-9) q.push(k + "=" + (+CFG[k]));
+  }
+  linkBox.value = location.origin + location.pathname + (q.length ? "?" + q.join("&") : "");
+}
+
+function buildPanel(){
+  panel.innerHTML = "";
+  GROUPS.forEach(([title, rows]) => {
+    const h = document.createElement("h4"); h.textContent = title; panel.append(h);
+    rows.forEach(([k, label, min, max, step, rebakes]) => {
+      const row = document.createElement("label"); row.className = "row";
+      const nm = document.createElement("span"); nm.className = "nm"; nm.textContent = label;
+      const vl = document.createElement("span"); vl.className = "vl";
+      const inp = document.createElement("input");
+      inp.type = "range"; inp.min = min; inp.max = max; inp.step = step; inp.value = CFG[k];
+      const show = () => vl.textContent = (+inp.value).toFixed(decimals(step));
+      show();
+      inp.addEventListener("input", () => {
+        CFG[k] = +inp.value; show();
+        if(rebakes) rebake();
+        updateLink();
+      });
+      row.append(nm, inp, vl); panel.append(row);
+    });
+  });
+
+  const btns = document.createElement("div"); btns.className = "btns";
+  const mk = (txt, fn) => { const b = document.createElement("button"); b.textContent = txt; b.onclick = fn; btns.append(b); return b; };
+  const palBtn = mk("", () => {
+    CFG.palette = (CFG.palette + 1) % PAL_COUNT; rebake();
+    palBtn.textContent = "palette " + CFG.palette; updateLink();
+  });
+  palBtn.textContent = "palette " + CFG.palette;
+  const mirBtn = mk("", () => {
+    CFG.mirror = CFG.mirror ? 0 : 1;
+    mirBtn.textContent = CFG.mirror ? "mirror on" : "mirror off"; updateLink();
+  });
+  mirBtn.textContent = CFG.mirror ? "mirror on" : "mirror off";
+  mk("clear", () => { clearTrails(); alive = 0; vCount = 0; });
+  mk("reset", () => { for(const k in DEFAULTS) CFG[k] = DEFAULTS[k]; rebake(); buildPanel(); });
+  mk("copy link", () => {
+    linkBox.select();
+    if(navigator.clipboard) navigator.clipboard.writeText(linkBox.value).catch(() => {});
+    else document.execCommand("copy");
+  });
+  panel.append(btns, linkBox);
+
+  const hint = document.createElement("div"); hint.className = "hint";
+  hint.textContent = "H hides this panel. The link carries every setting, so paste it into Lively once you like one.";
+  panel.append(hint);
+  updateLink();
+}
+buildPanel();
+if(CFG.hud) panel.classList.add("on");
+
+// --- keys ------------------------------------------------------------------
+addEventListener("keydown", e => {
+  if(e.target && e.target.tagName === "INPUT") return;
+  const k = e.key;
+  if(k >= "0" && k <= "9"){ CFG.fold = k === "0" ? 10 : +k; rebake(); }
+  else if(k === "p" || k === "P"){ CFG.palette = (CFG.palette + 1) % PAL_COUNT; rebake(); }
+  else if(k === "m" || k === "M"){ CFG.mirror = CFG.mirror ? 0 : 1; }
+  else if(k === "["){ CFG.px = Math.max(1, CFG.px - 1); }
+  else if(k === "]"){ CFG.px = Math.min(16, CFG.px + 1); }
+  else if(k === " "){ paused = !paused; e.preventDefault(); return; }
+  else if(k === "c" || k === "C"){ clearTrails(); alive = 0; vCount = 0; return; }
+  else if(k === "h" || k === "H"){ panel.classList.toggle("on"); return; }
+  else if(k === "s" || k === "S"){
+    const a = document.createElement("a");
+    a.download = "pixel-vortex-" + Date.now() + ".png";
+    a.href = canvas.toDataURL("image/png");
+    a.click();
+    return;
+  }
+  else return;
+  buildPanel();          // resync the sliders with whatever the key changed
+});
+</script>

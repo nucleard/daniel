@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paint studies — dark impasto + chunky type</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { height:100%; overflow:hidden; background:#0c0a10; }
+  body { font-family: system-ui, sans-serif; }
+
+  #paint { position:fixed; inset:-6%; width:112%; height:112%; }
+  #veil  { position:fixed; inset:0; pointer-events:none; }
+
+  .content { position:fixed; z-index:2; left:7vw; top:22vh; max-width:44ch; }
+  .eyebrow { text-transform:uppercase; letter-spacing:.35em; font-size:12px; font-weight:700;
+    color:#fff; opacity:.75; }
+  h1 { font-size: clamp(52px, 8.5vw, 130px); font-weight:900; letter-spacing:-.04em;
+    text-transform:uppercase; line-height:.9; margin:.2em 0; color:#fff; }
+  .tag { color:#fff; opacity:.85; font-weight:600; line-height:1.5; }
+
+  /* type treatments */
+  body.t-solid h1 { color:#fff; }
+  body.t-outline h1 { color:transparent; -webkit-text-stroke: 2.5px #fff; text-stroke: 2.5px #fff; }
+  body.t-cmyk h1 { color:#fff;
+    text-shadow: 5px 5px 0 oklch(62% 0.26 350 / .9), 10px 10px 0 oklch(75% 0.15 200 / .75); }
+  body.t-ink h1 { color: oklch(16% 0.02 300);
+    text-shadow: -1px -1px 0 rgba(255,255,255,.25); }
+  body.t-panel .content { background: rgba(8,6,12,.45); backdrop-filter: blur(18px) saturate(1.2);
+    padding: 4vh 3vw; border-radius: 18px; border: 1px solid rgba(255,255,255,.14);
+    max-width: none; width: fit-content; }
+
+  #switcher { position:fixed; z-index:99; bottom:14px; left:50%; transform:translateX(-50%);
+    display:flex; gap:6px; background:rgba(20,20,24,.85); padding:6px 8px; border-radius:99px; }
+  #switcher button { border:0; background:transparent; color:#aaa; font:600 12px system-ui;
+    padding:5px 10px; border-radius:99px; cursor:pointer; white-space:nowrap; }
+  #switcher button.on { background:#fff; color:#111; }
+</style>
+</head>
+<body>
+
+<canvas id="paint"></canvas>
+<div id="veil"></div>
+<div class="content">
+  <div class="eyebrow">Daniel — AI design &amp; tooling</div>
+  <h1>Useful.<br>Useless.<br>Gorgeous.</h1>
+  <p class="tag">Nine machines on one dial. Pick your poison.</p>
+</div>
+<nav id="switcher"></nav>
+
+<script>
+function mulberry32(seed) {
+  return function() {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+// deep saturated 60s paint: magenta, cadmium orange, yellow, green, cobalt, purple
+const HUES = [350, 30, 75, 145, 240, 305];
+const cv = document.getElementById('paint');
+const ctx = cv.getContext('2d');
+
+function paintColor(rnd, opts) {
+  const hue = HUES[(rnd() * HUES.length) | 0];
+  const L = opts.Lmin + rnd() * (opts.Lmax - opts.Lmin);
+  return { hue, L, css: `oklch(${L}% ${opts.C} ${hue})` };
+}
+
+// thick impasto stroke: base body + light ridge + dark under-edge
+function impastoStroke(rnd, w, h, opts) {
+  const col = paintColor(rnd, opts);
+  const x0 = rnd()*w, y0 = rnd()*h;
+  const ang = rnd()*Math.PI*2;
+  const len = (0.2 + rnd()*0.35) * Math.max(w,h);
+  const x1 = x0 + Math.cos(ang)*len, y1 = y0 + Math.sin(ang)*len;
+  const mx = (x0+x1)/2 + (rnd()-0.5)*len*0.5;
+  const my = (y0+y1)/2 + (rnd()-0.5)*len*0.5;
+  const width = opts.wMin + rnd()*(opts.wMax-opts.wMin);
+  ctx.lineCap = 'round';
+  // dark under-edge (shadow side)
+  ctx.strokeStyle = `oklch(${col.L*0.45}% ${opts.C*0.8} ${col.hue} / .9)`;
+  ctx.lineWidth = width;
+  ctx.beginPath(); ctx.moveTo(x0+5, y0+7); ctx.quadraticCurveTo(mx+5, my+7, x1+5, y1+7); ctx.stroke();
+  // body
+  ctx.strokeStyle = col.css;
+  ctx.lineWidth = width;
+  ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(mx, my, x1, y1); ctx.stroke();
+  // light ridge (specular side)
+  ctx.strokeStyle = `oklch(${Math.min(92, col.L*1.35)}% ${opts.C*0.55} ${col.hue} / .65)`;
+  ctx.lineWidth = Math.max(3, width*0.12);
+  ctx.beginPath(); ctx.moveTo(x0-width*0.22, y0-width*0.26);
+  ctx.quadraticCurveTo(mx-width*0.22, my-width*0.26, x1-width*0.22, y1-width*0.26); ctx.stroke();
+}
+
+// glossy glob: irregular blob + highlight + drips
+function glob(rnd, w, h, opts) {
+  const col = paintColor(rnd, opts);
+  const cx = rnd()*w, cy = rnd()*h;
+  const r = opts.wMin + rnd()*(opts.wMax-opts.wMin);
+  // irregular blob outline
+  ctx.fillStyle = col.css;
+  ctx.beginPath();
+  const bumps = 8 + (rnd()*4|0), offs = rnd()*7;
+  for (let a = 0; a <= bumps; a++) {
+    const th = a/bumps * Math.PI*2;
+    const rr = r * (0.75 + 0.3*Math.sin(th*3 + offs) * rnd());
+    const px = cx + rr*Math.cos(th), py = cy + rr*Math.sin(th);
+    a === 0 ? ctx.moveTo(px,py) : ctx.lineTo(px,py);
+  }
+  ctx.closePath(); ctx.fill();
+  // drips
+  const drips = 1 + (rnd()*3|0);
+  for (let d = 0; d < drips; d++) {
+    const dx = cx + (rnd()-0.5)*r*1.2;
+    const dl = r*(0.5 + rnd()*1.4), dw = 8 + rnd()*18;
+    ctx.beginPath(); ctx.roundRect(dx-dw/2, cy+r*0.4, dw, dl, dw/2); ctx.fill();
+  }
+  // glossy highlight
+  ctx.fillStyle = `oklch(97% 0.02 ${col.hue} / .3)`;
+  ctx.beginPath();
+  ctx.ellipse(cx - r*0.3, cy - r*0.35, r*0.38, r*0.2, -0.5, 0, 7);
+  ctx.fill();
+}
+
+const STUDIES = [
+  { key:'Raw Impasto', type:'t-solid', seed:11, mode:impastoStroke, n:16, blur:0, veil:'transparent',
+    ground:'oklch(15% 0.02 300)', opts:{ C:0.27, Lmin:52, Lmax:70, wMin:70, wMax:170 } },
+  { key:'Impasto + Glass', type:'t-solid', seed:11, mode:impastoStroke, n:16, blur:14, veil:'rgba(10,8,14,.28)',
+    ground:'oklch(15% 0.02 300)', opts:{ C:0.27, Lmin:52, Lmax:70, wMin:70, wMax:170 } },
+  { key:'Deep Glass + CMYK', type:'t-cmyk', seed:23, mode:impastoStroke, n:14, blur:30, veil:'rgba(8,6,12,.38)',
+    ground:'oklch(13% 0.03 320)', opts:{ C:0.28, Lmin:48, Lmax:66, wMin:90, wMax:200 } },
+  { key:'Outline on Raw', type:'t-outline', seed:31, mode:impastoStroke, n:20, blur:4, veil:'rgba(10,8,14,.18)',
+    ground:'oklch(14% 0.02 280)', opts:{ C:0.28, Lmin:50, Lmax:68, wMin:80, wMax:180 } },
+  { key:'Globs + Glass', type:'t-solid', seed:47, mode:glob, n:12, blur:10, veil:'rgba(10,8,14,.3)',
+    ground:'oklch(15% 0.025 310)', opts:{ C:0.27, Lmin:52, Lmax:70, wMin:70, wMax:150 } },
+  { key:'Frosted Panel', type:'t-solid t-panel', seed:31, mode:glob, n:14, blur:0, veil:'transparent',
+    ground:'oklch(14% 0.02 280)', opts:{ C:0.28, Lmin:50, Lmax:70, wMin:60, wMax:160 } },
+];
+
+function render(i) {
+  const s = STUDIES[i];
+  const w = cv.width = Math.round(innerWidth*1.12);
+  const h = cv.height = Math.round(innerHeight*1.12);
+  const rnd = mulberry32(s.seed);
+  ctx.fillStyle = s.ground; ctx.fillRect(0,0,w,h);
+  for (let k = 0; k < s.n; k++) s.mode(rnd, w, h, s.opts);
+  cv.style.filter = s.blur ? `blur(${s.blur}px) saturate(1.15)` : 'none';
+  document.getElementById('veil').style.background = s.veil;
+  document.body.className = s.type;
+  [...nav.children].forEach((b,j) => b.classList.toggle('on', j === i));
+}
+
+const nav = document.getElementById('switcher');
+STUDIES.forEach((s, i) => {
+  const b = document.createElement('button');
+  b.textContent = (i+1) + ' ' + s.key;
+  b.onclick = () => { current = i; render(i); };
+  nav.appendChild(b);
+});
+let current = 0;
+addEventListener('keydown', e => {
+  const n = parseInt(e.key);
+  if (n >= 1 && n <= STUDIES.length) { current = n-1; render(current); }
+});
+addEventListener('resize', () => render(current));
+render(0);
+</script>
+</body>
+</html>

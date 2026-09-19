@@ -1,0 +1,583 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>mandala (interactive wallpaper prototype)</title>
+<style>
+html,body{margin:0;height:100%;background:#07040c;overflow:hidden;cursor:crosshair}
+canvas{width:100%;height:100%;display:block}
+#hud{position:fixed;left:18px;bottom:16px;font:12px/1.55 ui-monospace,Consolas,monospace;color:#ece1ff;
+     background:rgba(10,6,18,.66);padding:11px 14px;border:1px solid rgba(236,225,255,.18);border-radius:7px;
+     white-space:pre;pointer-events:none;opacity:0;transition:opacity .35s}
+#hud.on{opacity:1}
+</style>
+<canvas id="c"></canvas>
+<div id="hud"></div>
+
+<script>
+// ---------------------------------------------------------------------------
+// Interactive mandala wallpaper, prototype.
+//
+// Four passes per frame, all WebGL2:
+//   BAKE      once (and on knob changes) -- draws the mandala into a square
+//             texture. Swap this for a painted PNG later; nothing else changes.
+//   FLOW      quarter res -- a scalar potential carrying the mandala's own
+//             dihedral symmetry. The advect pass takes its curl, which is what
+//             makes the streams curl and wisp instead of spraying straight.
+//   ADVECT    half res -- semi-Lagrangian: each texel pulls colour from where
+//             the flow came from, softens it, and fades. Then ink is injected
+//             as additive point sprites at every symmetric image of the
+//             cursor, coloured by the mandala underneath that image.
+//   COMPOSITE full res -- mandala + ink, soft tonemap.
+//
+// Mandalas within mandalas: the little rosette of emitters around the cursor
+// is rotated and mirrored into every slot of the big pattern, so one gesture
+// blooms as a ring of small mandalas inside the large one.
+// ---------------------------------------------------------------------------
+
+const Q = new URLSearchParams(location.search);
+const num = (k, d) => (Q.has(k) ? parseFloat(Q.get(k)) : d);
+
+const CFG = {
+  fold:    num("fold", 9),       // petals / symmetry slots. keys 1-9, 0 = 10
+  palette: num("palette", 0),    // 0 jewel, 1 ember, 2 sea, 3 dusk. key P
+  zoom:    num("zoom", 1.0),     // <1 makes the mandala fill more of the screen
+  spin:    num("spin", 0.004),   // rad/s for the whole pattern, ~26 min a turn
+  speed:   num("speed", 1.0),    // global time scale
+  glow:    num("glow", 0.95),    // how brightly the ink burns
+  decay:   num("decay", 0.9935), // ink survival per frame. higher = longer tails
+  soften:  num("soften", 0.055), // per-frame blur of the trail buffer
+  flow:    num("flow", 0.19),    // curl field strength, art units/sec
+  swirl:   num("swirl", 0.055),  // rotation about the centre, per second
+  radial:  num("radial", 0.035), // outward drift, so streams stream away
+  emit:    num("emit", 0.5),     // ink each particle lays down
+  rate:    num("rate", 9),       // rosettes spawned per second while moving
+  life:    num("life", 9.0),     // particle lifetime, seconds
+  burst:   num("burst", 0.16),   // initial outward speed of a new rosette
+  local:   num("local", 4),      // particles in the rosette at the cursor
+  localR:  num("localR", 0.055), // its radius, in art units
+  size:    num("size", 0.026),   // particle sprite size, in art units
+  mirror:  num("mirror", 1),     // include reflections (true dihedral symmetry)
+  sim:     num("sim", 0.5),      // trail buffer scale vs. canvas
+  hud:     num("hud", 1),
+};
+const PAL_COUNT = 4;
+
+const canvas = document.getElementById("c");
+const hud = document.getElementById("hud");
+const gl = canvas.getContext("webgl2", { alpha: false, antialias: false, preserveDrawingBuffer: true });
+if (!gl) document.body.textContent = "WebGL2 not available";
+
+const hdr = !!gl.getExtension("EXT_color_buffer_float");
+const TEX_TYPE = hdr ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE;
+const TEX_FMT = hdr ? gl.RGBA16F : gl.RGBA8;
+
+// --- shared GLSL -----------------------------------------------------------
+const COMMON = `
+#define PI  3.14159265359
+#define TAU 6.28318530718
+float hash21(vec2 p){ p = fract(p*vec2(123.34,345.45)); p += dot(p, p+34.345); return fract(p.x*p.y); }
+float vnoise(vec2 p){
+  vec2 i = floor(p), f = fract(p), u = f*f*(3.0-2.0*f);
+  return mix(mix(hash21(i), hash21(i+vec2(1,0)), u.x),
+             mix(hash21(i+vec2(0,1)), hash21(i+vec2(1,1)), u.x), u.y);
+}
+float fbm(vec2 p, int oct){
+  float s = 0.0, a = 0.5; mat2 m = mat2(0.8,0.6,-0.6,0.8);
+  for(int i=0;i<6;i++){ if(i>=oct) break; s += a*vnoise(p); p = m*p*2.03; a *= 0.5; }
+  return s;
+}
+// angular distance to the nearest of k mirror axes. continuous, so no seams
+float foldAngle(float a, float k){ float h = PI/k; return abs(mod(a+h, 2.0*h) - h); }
+vec3 pal(float t, vec3 a, vec3 b, vec3 c, vec3 d){ return a + b*cos(TAU*(c*t+d)); }
+`;
+
+const VERT_QUAD = `#version 300 es
+in vec2 v; out vec2 uv;
+void main(){ uv = v*0.5+0.5; gl_Position = vec4(v, 0.0, 1.0); }`;
+
+// --- BAKE: the mandala itself ----------------------------------------------
+// Everything in this shader is the painting. To use a real Flux/Qwen render
+// instead, load it into the same texture slot; no other pass changes.
+const FRAG_BAKE = `#version 300 es
+precision highp float;
+in vec2 uv; out vec4 fragColor;
+uniform float u_fold, u_extent; uniform int u_pal;
+${COMMON}
+
+vec3 scheme(float t){
+  if(u_pal == 1) return pal(t, vec3(0.52,0.30,0.18), vec3(0.48,0.32,0.16), vec3(1.0,0.9,0.7), vec3(0.0,0.12,0.22));
+  if(u_pal == 2) return pal(t, vec3(0.22,0.42,0.48), vec3(0.28,0.34,0.36), vec3(1.0,1.0,0.9), vec3(0.4,0.22,0.06));
+  if(u_pal == 3) return pal(t, vec3(0.30,0.26,0.34), vec3(0.34,0.28,0.22), vec3(0.8,0.9,1.0), vec3(0.08,0.18,0.42));
+  return pal(t, vec3(0.46,0.34,0.52), vec3(0.42,0.34,0.44), vec3(1.0,1.0,1.0), vec3(0.0,0.22,0.48));
+}
+
+// k beads sitting on the circle of radius rb
+float beads(float r, float a, float rb, float k, float sz){
+  float af = foldAngle(a, k);
+  float d = length(vec2(cos(af), sin(af))*r - vec2(rb, 0.0));
+  return smoothstep(sz, 0.0, d);
+}
+// a hairline circle
+float hair(float r, float r0, float w){ return smoothstep(w, 0.0, abs(r - r0)); }
+
+// One course of k petals centred on the circle of radius rc. Working in folded
+// polar coordinates -- u is arc distance from the nearest of k mirror axes,
+// v is radial offset -- makes every shape dihedrally symmetric for free.
+// tip tapers the petal outward into a teardrop.
+vec3 course(float r, float a, float k, float rc, float hr, float hu, float tip,
+            vec3 fill, vec3 edge, float veins){
+  float af = foldAngle(a, k);
+  float u = af*r, v = r - rc;
+  float wu = hu * (1.0 - tip*clamp(v/hr, -1.0, 1.0));
+  float e = length(vec2(v/hr, u/max(wu, 1e-4)));
+  float f = 1.0 - smoothstep(0.84, 1.0, e);                 // body
+  float o = smoothstep(0.11, 0.0, abs(e - 1.0));            // drawn edge
+  float vn = 0.70 + 0.30*cos(veins*u/max(hu, 1e-4));        // veining
+  vec3 c = fill*f*vn + edge*o*0.9;
+  c *= 1.0 + 0.40*f*smoothstep(0.0, -hr, v);                // lit at the base
+  return c;
+}
+
+vec3 mandala(vec2 pIn){
+  // the courses below are laid out to radius ~1.3; scale so the border lands
+  // just inside the short edge of the screen
+  vec2 p = pIn * 1.37;
+  // painterly domain warp, so the geometry does not look machined
+  vec2 w = p + 0.028*(vec2(fbm(p*3.2, 4), fbm(p*3.2 + vec2(5.2,1.3), 4)) - 0.5);
+  float r = length(w), a = atan(w.y, w.x);
+  float K = u_fold;
+  const vec3 GOLD = vec3(1.00, 0.84, 0.52);
+  vec3 col = vec3(0.0);
+
+  // ground: soft rays reaching the corners, plus a faint concentric ripple
+  float rays = 0.5 + 0.5*cos(K*2.0*a);
+  col += scheme(0.55) * (0.085 + 0.075*rays) * smoothstep(2.9, 0.2, r);
+  col += scheme(0.28) * 0.035 * (0.5 + 0.5*cos(r*52.0)) * smoothstep(1.5, 0.1, r);
+
+  // heart
+  col += vec3(1.00, 0.93, 0.76) * exp(-r*13.0) * 0.75;
+  col += course(r, a, K, 0.105, 0.075, 0.040, 0.45, scheme(0.08)*1.5, GOLD, 26.0);
+  col += GOLD * beads(r, a, 0.185, K, 0.016) * 0.9;
+  col += GOLD * hair(r, 0.215, 0.0035) * 0.5;
+
+  // first great course
+  col += course(r, a, K, 0.320, 0.105, 0.072, 0.50, scheme(0.30)*1.35, GOLD, 30.0);
+  col += course(r, a, K, 0.320, 0.045, 0.026, 0.30, scheme(0.62)*1.30, GOLD*0.0, 18.0);
+  col += GOLD * hair(r, 0.445, 0.0035) * 0.55;
+
+  // a finer course between
+  col += course(r, a, K*2.0, 0.520, 0.062, 0.036, 0.55, scheme(0.72)*1.25, GOLD, 22.0);
+  col += GOLD * beads(r, a, 0.600, K*2.0, 0.013) * 0.8;
+  col += GOLD * hair(r, 0.640, 0.0030) * 0.45;
+
+  // second great course
+  col += course(r, a, K*2.0, 0.770, 0.098, 0.052, 0.60, scheme(0.46)*1.30, GOLD, 26.0);
+  col += course(r, a, K*2.0, 0.770, 0.042, 0.020, 0.35, scheme(0.90)*1.25, GOLD*0.0, 16.0);
+
+  // outer lotus and its border
+  col += GOLD * hair(r, 0.905, 0.0030) * 0.5;
+  col += course(r, a, K*3.0, 1.010, 0.082, 0.038, 0.70, scheme(0.16)*1.20, GOLD, 20.0);
+  col += GOLD * beads(r, a, 1.115, K*3.0, 0.011) * 0.75;
+  col += GOLD * hair(r, 1.155, 0.0028) * 0.45;
+  col += GOLD * hair(r, 1.175, 0.0028) * 0.30;
+
+  // filigree fading into the ground
+  col += course(r, a, K*6.0, 1.290, 0.055, 0.018, 0.75, scheme(0.58)*0.75, GOLD*0.5, 14.0)
+         * smoothstep(1.55, 1.20, r);
+
+  col *= 0.84 + 0.32*fbm(w*13.0, 4);                    // canvas grain
+  col += scheme(fbm(w*0.7, 3)) * 0.045;                 // slow colour drift
+  col *= smoothstep(2.45, 0.45, r)*0.75 + 0.25;         // gentle vignette
+  return col;
+}
+
+void main(){
+  vec2 p = (uv*2.0 - 1.0) * u_extent;
+  vec3 c = mandala(p);
+  c = 1.0 - exp(-c*1.25);
+  fragColor = vec4(pow(max(c, 0.0), vec3(0.92)), 1.0);
+}`;
+
+// --- FADE: the phosphor ----------------------------------------------------
+// The trail buffer is not a fluid. The particles move themselves and stamp
+// their position every frame, so the buffer only has to soften and fade --
+// that persistence is what turns a moving particle into a drawn wisp.
+const FRAG_FADE = `#version 300 es
+precision highp float;
+in vec2 uv; out vec4 fragColor;
+uniform sampler2D u_prev;
+uniform vec2 u_res;
+uniform float u_dt, u_decay, u_soften;
+void main(){
+  vec2 px = 1.0/u_res;
+  vec4 c = texture(u_prev, uv) * (1.0 - 4.0*u_soften)
+         + (texture(u_prev, uv + vec2(px.x,0.0)) + texture(u_prev, uv - vec2(px.x,0.0))
+          + texture(u_prev, uv + vec2(0.0,px.y)) + texture(u_prev, uv - vec2(0.0,px.y))) * u_soften;
+  c *= pow(u_decay, u_dt*60.0);
+  vec2 f = smoothstep(vec2(0.0), vec2(0.02), uv) * smoothstep(vec2(0.0), vec2(0.02), 1.0 - uv);
+  fragColor = c * f.x * f.y;
+}`;
+
+// --- INJECT: additive sprites, coloured by the mandala underneath -----------
+const VERT_INJECT = `#version 300 es
+in vec2 a_pos; in float a_emit;
+uniform sampler2D u_mandala;
+uniform float u_aspect, u_size, u_extent, u_spin, u_simH;
+out vec3 v_col;
+mat2 rotM(float a){ float c = cos(a), s = sin(a); return mat2(c,-s,s,c); }
+void main(){
+  vec2 m = rotM(u_spin) * a_pos;
+  vec3 c = textureLod(u_mandala, (m/u_extent)*0.5 + 0.5, 0.0).rgb;
+  float l = dot(c, vec3(0.299,0.587,0.114));
+  v_col = mix(vec3(l), c, 1.45) * a_emit;   // push off grey so streams carry real colour
+  gl_Position = vec4(a_pos/vec2(u_aspect, 1.0), 0.0, 1.0);
+  gl_PointSize = u_size * u_simH * 0.5;
+}`;
+const FRAG_INJECT = `#version 300 es
+precision highp float;
+in vec3 v_col; out vec4 fragColor;
+void main(){
+  float d = length(gl_PointCoord - 0.5) * 2.0;
+  float g = exp(-d*d*3.2) * smoothstep(1.0, 0.0, d);
+  fragColor = vec4(max(v_col, 0.0)*g, g);
+}`;
+
+// --- COMPOSITE -------------------------------------------------------------
+const FRAG_COMP = `#version 300 es
+precision highp float;
+in vec2 uv; out vec4 fragColor;
+uniform sampler2D u_mandala, u_trail;
+uniform float u_aspect, u_zoom, u_extent, u_spin, u_glow;
+mat2 rotM(float a){ float c = cos(a), s = sin(a); return mat2(c,-s,s,c); }
+void main(){
+  vec2 p = (uv*2.0 - 1.0) * vec2(u_aspect, 1.0) / u_zoom;
+  vec3 base = texture(u_mandala, ((rotM(u_spin)*p)/u_extent)*0.5 + 0.5).rgb;
+  vec3 ink  = max(texture(u_trail, uv).rgb, 0.0);
+  float li  = dot(ink, vec3(0.333));
+  ink = max(mix(vec3(li), ink, 1.40), 0.0);   // additive piling greys the ink out
+  vec3 col  = base*(1.0 + 0.30*min(li, 1.5)) + ink*u_glow;
+  col = 1.0 - exp(-col*1.3);
+  fragColor = vec4(pow(col, vec3(0.9)), 1.0);
+}`;
+
+// --- GL plumbing -----------------------------------------------------------
+function sh(type, src){
+  const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+  if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)){
+    const log = gl.getShaderInfoLog(s);
+    console.error("shader compile failed:", log);
+    console.error(src.split("\n").map((l,i) => (i+1) + ": " + l).join("\n"));
+    throw new Error(log);
+  }
+  return s;
+}
+function prog(vs, fs, attrs){
+  const p = gl.createProgram();
+  gl.attachShader(p, sh(gl.VERTEX_SHADER, vs));
+  gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs));
+  attrs.forEach((n,i) => gl.bindAttribLocation(p, i, n));
+  gl.linkProgram(p);
+  if(!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  const cache = {};
+  const u = new Proxy({}, { get: (_, k) => (k in cache ? cache[k] : (cache[k] = gl.getUniformLocation(p, k))) });
+  return { p, u };
+}
+const P_BAKE = prog(VERT_QUAD, FRAG_BAKE, ["v"]);
+const P_FADE = prog(VERT_QUAD, FRAG_FADE, ["v"]);
+const P_INJ  = prog(VERT_INJECT, FRAG_INJECT, ["a_pos","a_emit"]);
+const P_COMP = prog(VERT_QUAD, FRAG_COMP, ["v"]);
+
+const quadBuf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, quadBuf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+const vaoQuad = gl.createVertexArray();
+gl.bindVertexArray(vaoQuad);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+const MAX_PTS = 24000;
+const ptData = new Float32Array(MAX_PTS*3);
+const ptBuf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, ptBuf);
+gl.bufferData(gl.ARRAY_BUFFER, ptData.byteLength, gl.DYNAMIC_DRAW);
+const vaoPts = gl.createVertexArray();
+gl.bindVertexArray(vaoPts);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 12, 0);
+gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 1, gl.FLOAT, false, 12, 8);
+gl.bindVertexArray(null);
+
+function target(w, h, fmt){
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texStorage2D(gl.TEXTURE_2D, 1, fmt, w, h);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  const f = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
+  const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+  if(!ok) console.error("incomplete framebuffer", w, h, fmt);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  return { t, f, w, h };
+}
+function drawQuad(){ gl.bindVertexArray(vaoQuad); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); }
+function use(o, fb){
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb ? fb.f : null);
+  gl.viewport(0, 0, fb ? fb.w : canvas.width, fb ? fb.h : canvas.height);
+  gl.useProgram(o.p);
+}
+
+// --- sizing ----------------------------------------------------------------
+const EXTENT = 2.3;   // art units the baked square covers, corner to corner
+let bake = null, trail = [], aspect = 1;
+
+function clearTrails(){
+  trail.forEach(tt => { use(P_FADE, tt); gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT); });
+}
+function resize(){
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  const w = Math.max(2, Math.floor(canvas.clientWidth * dpr));
+  const h = Math.max(2, Math.floor(canvas.clientHeight * dpr));
+  if(canvas.width === w && canvas.height === h && bake) return;
+  canvas.width = w; canvas.height = h; aspect = w/h;
+
+  trail.forEach(tt => { if(tt){ gl.deleteTexture(tt.t); gl.deleteFramebuffer(tt.f); } });
+  const sw = Math.max(64, Math.floor(w*CFG.sim)), shh = Math.max(64, Math.floor(h*CFG.sim));
+  trail = [target(sw, shh, TEX_FMT), target(sw, shh, TEX_FMT)];
+  clearTrails();
+
+  if(!bake){
+    const s = Math.min(1536, Math.max(768, Math.max(w, h)));
+    bake = target(s, s, gl.RGBA8);
+    rebake();
+  }
+}
+function rebake(){
+  use(P_BAKE, bake);
+  gl.uniform1f(P_BAKE.u.u_fold, CFG.fold);
+  gl.uniform1i(P_BAKE.u.u_pal, CFG.palette|0);
+  gl.uniform1f(P_BAKE.u.u_extent, EXTENT);
+  drawQuad();
+}
+window.addEventListener("resize", resize);
+
+// --- cursor ----------------------------------------------------------------
+// Art space: origin at screen centre, y in [-1,1], x scaled by aspect.
+const mouse = { x: 0, y: 0, px: 0, py: 0, seen: false };
+addEventListener("pointermove", e => {
+  const x = (e.clientX/canvas.clientWidth - 0.5) * 2 * aspect;
+  const y = -(e.clientY/canvas.clientHeight - 0.5) * 2;
+  if(!mouse.seen){ mouse.px = x; mouse.py = y; mouse.seen = true; }
+  mouse.x = x; mouse.y = y;
+});
+
+// --- the flow field --------------------------------------------------------
+// A handful of plane waves summed into a scalar potential. Taking the
+// perpendicular of its gradient gives a divergence-free field, so particles
+// curl and fold through it instead of piling up or spraying outward.
+// Analytic, so there are no finite differences and no noise texture.
+const WAVES = (() => {
+  let s = 20260918;
+  const rnd = () => (s = (s*1664525 + 1013904223) >>> 0, s/4294967296);
+  const out = [];
+  for(let i=0;i<10;i++){
+    const k = 1.5*Math.pow(1.42, i), a = rnd()*Math.PI*2;
+    out.push({ wx: Math.cos(a)*k, wy: Math.sin(a)*k, amp: 0.9/k,
+               ph: rnd()*6.2832, sp: 0.18 + rnd()*0.34 });
+  }
+  return out;
+})();
+let flowX = 0, flowY = 0;
+function flowAt(x, y, t){
+  let gx = 0, gy = 0;
+  for(let i=0;i<WAVES.length;i++){
+    const w = WAVES[i];
+    const c = Math.cos(x*w.wx + y*w.wy + w.ph + t*w.sp) * w.amp;
+    gx += c*w.wx; gy += c*w.wy;
+  }
+  flowX = gy; flowY = -gx;          // perpendicular of the gradient
+}
+
+// --- particles -------------------------------------------------------------
+const PMAX = 900;
+const pX = new Float32Array(PMAX), pY = new Float32Array(PMAX);
+const pVX = new Float32Array(PMAX), pVY = new Float32Array(PMAX);
+const pAge = new Float32Array(PMAX), pLife = new Float32Array(PMAX);
+let alive = 0, spawnAcc = 0;
+
+function spawn(x, y, vx, vy, life){
+  if(alive >= PMAX) return;
+  const i = alive++;
+  pX[i] = x; pY[i] = y; pVX[i] = vx; pVY[i] = vy; pAge[i] = 0; pLife[i] = life;
+}
+function kill(i){
+  alive--;
+  pX[i] = pX[alive]; pY[i] = pY[alive]; pVX[i] = pVX[alive];
+  pVY[i] = pVY[alive]; pAge[i] = pAge[alive]; pLife[i] = pLife[alive];
+}
+
+function stepParticles(t, dt){
+  const blend = Math.min(1, dt*5);
+  for(let i=0;i<alive;i++){
+    flowAt(pX[i], pY[i], t);
+    const r = Math.hypot(pX[i], pY[i]) + 1e-4;
+    const vx = flowX*CFG.flow - pY[i]*CFG.swirl + (pX[i]/r)*CFG.radial;
+    const vy = flowY*CFG.flow + pX[i]*CFG.swirl + (pY[i]/r)*CFG.radial;
+    pVX[i] += (vx - pVX[i])*blend;          // inertia, so launches arc
+    pVY[i] += (vy - pVY[i])*blend;
+    pX[i] += pVX[i]*dt; pY[i] += pVY[i]*dt;
+    pAge[i] += dt;
+    if(pAge[i] >= pLife[i] || r > 2.4){ kill(i); i--; }
+  }
+}
+
+// Spawn a small rosette at the cursor. Its members are ordinary particles, so
+// they drift apart into their own little mandala as they age.
+function emitFromCursor(t, dt){
+  const dx = mouse.x - mouse.px, dy = mouse.y - mouse.py;
+  const dist = Math.hypot(dx, dy);
+  // 0.8 art units/sec counts as a full-strength gesture: a relaxed sweep
+  // across half the screen in a second, not a flick
+  const speed = Math.min(1, dist/Math.max(dt, 1e-3)/0.8);
+  const L = Math.max(1, Math.round(CFG.local));
+
+  spawnAcc += CFG.rate*(0.06 + 0.94*speed)*dt;   // the floor keeps it breathing
+  const events = Math.min(6, Math.floor(spawnAcc));
+  spawnAcc -= events;
+
+  for(let e=0;e<events;e++){
+    const f = events === 1 ? 1 : e/(events - 1);
+    const bx = mouse.px + dx*f, by = mouse.py + dy*f;
+    for(let l=0;l<L;l++){
+      const a = l*Math.PI*2/L + t*0.55;
+      spawn(bx + Math.cos(a)*CFG.localR, by + Math.sin(a)*CFG.localR,
+            Math.cos(a)*CFG.burst + dx/Math.max(dt,1e-3)*0.05,
+            Math.sin(a)*CFG.burst + dy/Math.max(dt,1e-3)*0.05,
+            CFG.life*(0.7 + 0.6*Math.random()));
+    }
+  }
+  mouse.px = mouse.x; mouse.py = mouse.y;
+}
+
+// Every particle, drawn once per symmetry slot. This is where one gesture
+// becomes a ring of small mandalas inside the large one.
+function buildPoints(){
+  const G = Math.max(1, Math.round(CFG.fold));
+  const mir = CFG.mirror ? 2 : 1;
+  const cap = Math.min(alive, Math.floor(MAX_PTS/(G*mir)));
+  let n = 0;
+  for(let i=0;i<cap;i++){
+    const ag = pAge[i]/pLife[i];
+    const env = Math.min(1, ag*10) * (1 - ag)*(1 - ag);   // quick in, long fade
+    const amp = CFG.emit * 0.20 * env;
+    const x = pX[i], y = pY[i];
+    for(let g=0; g<G; g++){
+      const ga = g*Math.PI*2/G, ca = Math.cos(ga), sa = Math.sin(ga);
+      ptData[n*3] = x*ca - y*sa; ptData[n*3+1] = x*sa + y*ca; ptData[n*3+2] = amp; n++;
+      if(CFG.mirror){
+        ptData[n*3] = x*ca + y*sa; ptData[n*3+1] = x*sa - y*ca; ptData[n*3+2] = amp; n++;
+      }
+    }
+  }
+  return n;
+}
+
+// --- loop ------------------------------------------------------------------
+let src = 0, paused = false, t = 0, last = performance.now();
+resize();
+
+function frame(now){
+  const raw = Math.min((now - last)/1000, 0.05); last = now;
+  const dt = paused ? 0 : raw*CFG.speed;
+  t += dt;
+  resize();
+
+  const dst = 1 - src;
+  const spin = t*CFG.spin;
+
+  use(P_FADE, trail[dst]);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, trail[src].t);
+  gl.uniform1i(P_FADE.u.u_prev, 0);
+  gl.uniform2f(P_FADE.u.u_res, trail[dst].w, trail[dst].h);
+  gl.uniform1f(P_FADE.u.u_dt, dt);
+  gl.uniform1f(P_FADE.u.u_decay, CFG.decay);
+  gl.uniform1f(P_FADE.u.u_soften, CFG.soften);
+  drawQuad();
+
+  if(!paused){
+    emitFromCursor(t, Math.max(raw, 1e-3)*CFG.speed);
+    stepParticles(t, dt);
+  }
+  const n = paused ? 0 : buildPoints();
+  if(n){
+    gl.useProgram(P_INJ.p);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE);
+    gl.bindBuffer(gl.ARRAY_BUFFER, ptBuf);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, ptData, 0, n*3);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, bake.t);
+    gl.uniform1i(P_INJ.u.u_mandala, 0);
+    gl.uniform1f(P_INJ.u.u_aspect, aspect);
+    gl.uniform1f(P_INJ.u.u_size, CFG.size);
+    gl.uniform1f(P_INJ.u.u_extent, EXTENT);
+    gl.uniform1f(P_INJ.u.u_spin, spin);
+    gl.uniform1f(P_INJ.u.u_simH, trail[dst].h);
+    gl.bindVertexArray(vaoPts);
+    gl.drawArrays(gl.POINTS, 0, n);
+    gl.disable(gl.BLEND);
+  }
+
+  use(P_COMP, null);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, bake.t);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, trail[dst].t);
+  gl.uniform1i(P_COMP.u.u_mandala, 0); gl.uniform1i(P_COMP.u.u_trail, 1);
+  gl.uniform1f(P_COMP.u.u_aspect, aspect);
+  gl.uniform1f(P_COMP.u.u_zoom, CFG.zoom);
+  gl.uniform1f(P_COMP.u.u_extent, EXTENT);
+  gl.uniform1f(P_COMP.u.u_spin, spin);
+  gl.uniform1f(P_COMP.u.u_glow, CFG.glow);
+  drawQuad();
+
+  src = dst;
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// --- keys ------------------------------------------------------------------
+let hudTimer = 0;
+function showHud(){
+  if(!CFG.hud) return;
+  hud.textContent = [
+    "fold " + CFG.fold + "   palette " + CFG.palette + "   glow " + CFG.glow.toFixed(2) +
+      "   decay " + CFG.decay.toFixed(3) + (hdr ? "" : "   (8-bit buffers)"),
+    "1-9,0  symmetry      P  palette     M  mirror",
+    "[ ]    glow          - =  trail length",
+    "space  pause         C  clear       S  screenshot       H  hide",
+  ].join("\n");
+  hud.classList.add("on");
+  clearTimeout(hudTimer);
+  hudTimer = setTimeout(() => hud.classList.remove("on"), 5000);
+}
+addEventListener("keydown", e => {
+  const k = e.key;
+  if(k >= "0" && k <= "9"){ CFG.fold = k === "0" ? 10 : +k; rebake(); }
+  else if(k === "p" || k === "P"){ CFG.palette = (CFG.palette + 1) % PAL_COUNT; rebake(); }
+  else if(k === "m" || k === "M"){ CFG.mirror = CFG.mirror ? 0 : 1; }
+  else if(k === "["){ CFG.glow = Math.max(0, CFG.glow - 0.1); }
+  else if(k === "]"){ CFG.glow += 0.1; }
+  else if(k === "-"){ CFG.decay = Math.max(0.90, CFG.decay - 0.004); }
+  else if(k === "="){ CFG.decay = Math.min(0.999, CFG.decay + 0.004); }
+  else if(k === " "){ paused = !paused; e.preventDefault(); }
+  else if(k === "c" || k === "C"){ clearTrails(); }
+  else if(k === "h" || k === "H"){ hud.classList.toggle("on"); return; }
+  else if(k === "s" || k === "S"){
+    const a = document.createElement("a");
+    a.download = "mandala-" + Date.now() + ".png";
+    a.href = canvas.toDataURL("image/png");
+    a.click();
+    return;
+  }
+  else return;
+  showHud();
+});
+if(CFG.hud) showHud();
+</script>

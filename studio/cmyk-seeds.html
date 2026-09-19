@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deep Glass + CMYK — seed studies</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { height:100%; overflow:hidden; background: oklch(13% 0.03 320); }
+  body { font-family: system-ui, sans-serif; }
+
+  #paint { position:fixed; inset:-6%; width:112%; height:112%;
+    filter: blur(30px) saturate(1.15); }
+  #veil  { position:fixed; inset:0; pointer-events:none; background: rgba(8,6,12,.38); }
+
+  .content { position:fixed; z-index:2; left:7vw; top:22vh; max-width:44ch; }
+  .eyebrow { text-transform:uppercase; letter-spacing:.35em; font-size:12px; font-weight:700;
+    color:#fff; opacity:.75; }
+  h1 { font-size: clamp(52px, 8.5vw, 130px); font-weight:900; letter-spacing:-.04em;
+    text-transform:uppercase; line-height:.9; margin:.2em 0; color:#fff;
+    text-shadow: 5px 5px 0 oklch(62% 0.26 350 / .9), 10px 10px 0 oklch(75% 0.15 200 / .75); }
+  .tag { color:#fff; opacity:.85; font-weight:600; line-height:1.5; }
+
+  #switcher { position:fixed; z-index:99; bottom:14px; left:50%; transform:translateX(-50%);
+    display:flex; gap:6px; background:rgba(20,20,24,.85); padding:6px 8px; border-radius:99px; }
+  #switcher button { border:0; background:transparent; color:#aaa; font:600 12px system-ui;
+    padding:5px 12px; border-radius:99px; cursor:pointer; }
+  #switcher button.on { background:#fff; color:#111; }
+</style>
+</head>
+<body>
+
+<canvas id="paint"></canvas>
+<div id="veil"></div>
+<div class="content">
+  <div class="eyebrow">Daniel — AI design &amp; tooling</div>
+  <h1>Useful.<br>Useless.<br>Gorgeous.</h1>
+  <p class="tag">Nine machines on one dial. Pick your poison.</p>
+</div>
+<nav id="switcher"></nav>
+
+<script>
+function mulberry32(seed) {
+  return function() {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+const HUES = [350, 30, 75, 145, 240, 305];
+const OPTS = { C:0.28, Lmin:48, Lmax:66, wMin:170, wMax:320 };
+const N = 14;
+
+const cv = document.getElementById('paint');
+const ctx = cv.getContext('2d');
+
+// one stroke with drift phases/speeds; ampScale widens the wander in alive mode
+function makeStroke(rnd, w, h, birth, lifespan, ampScale) {
+  const hue = HUES[(rnd() * HUES.length) | 0];
+  const L = OPTS.Lmin + rnd() * (OPTS.Lmax - OPTS.Lmin);
+  const x0 = rnd()*w, y0 = rnd()*h;
+  const ang = rnd()*Math.PI*2;
+  const len = (0.1 + rnd()*0.22) * Math.max(w,h);
+  const mx = (x0 + x0 + Math.cos(ang)*len)/2 + (rnd()-0.5)*len*0.5;
+  const my = (y0 + y0 + Math.sin(ang)*len)/2 + (rnd()-0.5)*len*0.5;
+  return {
+    hue, L, x0, y0, ang, len, mx, my,
+    width: OPTS.wMin + rnd()*(OPTS.wMax-OPTS.wMin),
+    birth, lifespan,
+    ph: rnd()*Math.PI*2, ph2: rnd()*Math.PI*2, ph3: rnd()*Math.PI*2,
+    sp: 0.045 + rnd()*0.06,                      // rad/s ≈ 100-140s periods
+    amp: (30 + rnd()*60) * ampScale,             // endpoint wander in px
+    bowAmp: (60 + rnd()*90) * ampScale,          // bow wander in px
+    angAmp: 0.12 + rnd()*0.18,                   // slow rotation in radians (unscaled — long strokes lever hard)
+  };
+}
+
+function makeStrokes(seed, w, h) {
+  const rnd = mulberry32(seed);
+  const strokes = [];
+  for (let k = 0; k < N; k++) strokes.push(makeStroke(rnd, w, h, 0, Infinity, 1));
+  return strokes;
+}
+
+function drawStroke(s, t) {
+  const x0 = s.x0 + Math.sin(t*s.sp + s.ph) * s.amp;
+  const y0 = s.y0 + Math.cos(t*s.sp*0.83 + s.ph2) * s.amp;
+  const ang = s.ang + Math.sin(t*s.sp*0.6 + s.ph3) * s.angAmp;
+  const x1 = x0 + Math.cos(ang)*s.len, y1 = y0 + Math.sin(ang)*s.len;
+  const mx = s.mx + Math.sin(t*s.sp*0.71 + s.ph2) * s.bowAmp;
+  const my = s.my + Math.cos(t*s.sp*0.57 + s.ph)  * s.bowAmp;
+  const width = s.width;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = `oklch(${s.L*0.45}% ${OPTS.C*0.8} ${s.hue} / .9)`;
+  ctx.lineWidth = width;
+  ctx.beginPath(); ctx.moveTo(x0+5, y0+7); ctx.quadraticCurveTo(mx+5, my+7, x1+5, y1+7); ctx.stroke();
+  ctx.strokeStyle = `oklch(${s.L}% ${OPTS.C} ${s.hue})`;
+  ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(mx, my, x1, y1); ctx.stroke();
+  ctx.strokeStyle = `oklch(${Math.min(92, s.L*1.35)}% ${OPTS.C*0.55} ${s.hue} / .65)`;
+  ctx.lineWidth = Math.max(3, width*0.12);
+  ctx.beginPath(); ctx.moveTo(x0-width*0.22, y0-width*0.26);
+  ctx.quadraticCurveTo(mx-width*0.22, my-width*0.26, x1-width*0.22, y1-width*0.26); ctx.stroke();
+}
+
+const SEEDS = [23, 5, 61, 88, 133, 202];
+const LIFE_MIN = 45, LIFE_VAR = 50, FADE = 10, ALIVE_AMP = 2;
+let strokes = [];
+let alive = false;       // mode 7: clock-seeded, strokes are born and die
+let rndLive = null;
+
+function render(i) {
+  const w = cv.width = Math.round(innerWidth*1.12);
+  const h = cv.height = Math.round(innerHeight*1.12);
+  alive = i === SEEDS.length;
+  if (alive) {
+    rndLive = rndLive || mulberry32(Date.now() % 2147483647);
+    const t = performance.now()/1000;
+    strokes = [];
+    for (let k = 0; k < N; k++) {
+      const lifespan = LIFE_MIN + rndLive()*LIFE_VAR;
+      // stagger births into the past so the population doesn't fade in unison;
+      // keep each stroke at least FADE from death so the start isn't ghostly
+      const age = rndLive() * (lifespan - FADE*2);
+      strokes.push(makeStroke(rndLive, w, h, t - age, lifespan, ALIVE_AMP));
+    }
+  } else {
+    strokes = makeStrokes(SEEDS[i], w, h);
+  }
+  [...nav.children].forEach((b,j) => b.classList.toggle('on', j === i));
+}
+
+function frame(ms) {
+  const t = ms / 1000;
+  ctx.fillStyle = 'oklch(13% 0.03 320)';
+  ctx.fillRect(0, 0, cv.width, cv.height);
+  for (let i = 0; i < strokes.length; i++) {
+    let s = strokes[i];
+    if (alive && t - s.birth > s.lifespan) {
+      s = strokes[i] = makeStroke(rndLive, cv.width, cv.height,
+        t, LIFE_MIN + rndLive()*LIFE_VAR, ALIVE_AMP);
+    }
+    if (alive) {
+      const life = t - s.birth;
+      ctx.globalAlpha = Math.max(0, Math.min(1, life/FADE, (s.lifespan - life)/FADE));
+    }
+    drawStroke(s, t);
+  }
+  ctx.globalAlpha = 1;
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+const nav = document.getElementById('switcher');
+const LABELS = SEEDS.map((s, i) => (i+1) + ' · seed ' + s).concat('7 · alive');
+LABELS.forEach((label, i) => {
+  const b = document.createElement('button');
+  b.textContent = label;
+  b.onclick = () => { current = i; render(i); };
+  nav.appendChild(b);
+});
+let current = 0;
+addEventListener('keydown', e => {
+  const n = parseInt(e.key);
+  if (n >= 1 && n <= LABELS.length) { current = n-1; render(current); }
+});
+addEventListener('resize', () => render(current));
+render(0);
+</script>
+</body>
+</html>

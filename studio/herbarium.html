@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HERBARIUM — Field Plate Tool</title>
+<style>
+:root{
+  --bg:#efe6d0; --panel:#f7f0df; --panel2:#fffdf4; --line:#d8c9a6;
+  --txt:#3a2e1c; --dim:#8d7c5c; --brass:#8a6d2f; --moss:#5a6b3a;
+  --mono:'JetBrains Mono','JetBrainsMono Nerd Font',Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--txt);font-family:var(--mono);font-size:12px;overflow:hidden}
+
+header{display:flex;align-items:center;gap:18px;height:56px;padding:0 18px;border-bottom:2px solid var(--line);background:#f3ebd7}
+header .brand{font-weight:700;font-size:15px;letter-spacing:.22em;color:var(--moss);white-space:nowrap}
+header .sub{color:var(--dim);letter-spacing:.16em;font-size:11px;white-space:nowrap}
+header .seedlab{color:var(--dim);letter-spacing:.18em;font-size:11px;margin-left:8px}
+header .seedval{color:var(--brass);font-weight:700;letter-spacing:.08em}
+header .spacer{flex:1}
+button{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;border:1px solid var(--brass);background:var(--panel2);color:var(--txt);padding:8px 16px;transition:all .12s}
+button:hover{background:#f0e6cc}
+button:disabled{opacity:.35;cursor:default}
+button:disabled:hover{background:var(--panel2)}
+button.primary{background:var(--moss);border-color:var(--moss);color:#f7f0df;font-weight:700}
+button.primary:hover{background:#6a7d46}
+.btngroup{display:flex;gap:8px;align-items:center}
+.vr{width:1px;height:24px;background:var(--line);margin:0 4px}
+
+main{display:flex;height:calc(100% - 56px)}
+aside{width:346px;min-width:346px;border-right:2px solid var(--line);overflow-y:auto;padding:16px 16px 60px;background:var(--panel)}
+aside::-webkit-scrollbar{width:10px}
+aside::-webkit-scrollbar-thumb{background:#cbb98e;border:2px solid var(--panel)}
+#stagewrap{flex:1;display:flex;align-items:center;justify-content:center;padding:28px;overflow:hidden;background:#e5dabf}
+#stage{max-width:100%;max-height:100%;display:flex;align-items:center;justify-content:center}
+#stage svg{max-width:100%;max-height:calc(100vh - 130px);height:auto;box-shadow:0 0 0 1px #b8a67c,0 18px 50px rgba(90,70,30,.35)}
+
+.drop{border:1px dashed #b8a67c;padding:16px 12px;text-align:center;color:var(--dim);letter-spacing:.14em;cursor:pointer;margin-bottom:16px;background:var(--panel2)}
+.drop:hover{border-color:var(--moss);color:var(--txt)}
+.drop .src{color:var(--brass);margin-top:8px;font-size:10px;letter-spacing:.1em;word-break:break-all}
+.section{border-top:1px solid var(--line);padding:14px 0 4px;margin-top:4px}
+.section h3{font-size:11px;font-weight:700;letter-spacing:.22em;margin-bottom:14px}
+.row{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.row label.name{width:104px;min-width:104px;color:var(--dim);letter-spacing:.12em;font-size:10px;text-transform:uppercase}
+.row .val{color:var(--brass);min-width:38px;font-weight:700}
+select,input[type=text]{font-family:var(--mono);font-size:11px;letter-spacing:.06em;background:var(--panel2);border:1px solid var(--line);color:var(--txt);padding:7px 10px;width:100%}
+select{text-transform:uppercase}
+select:focus,input[type=text]:focus{outline:1px solid var(--moss)}
+input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:4px;background:#d3c29a;border-radius:2px}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--moss);border:2px solid var(--panel2);cursor:pointer}
+input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--moss);border:2px solid var(--panel2);cursor:pointer}
+
+.mod{border:1px solid var(--line);margin:12px 0;background:var(--panel2)}
+.mod .modhead{display:flex;align-items:center;gap:12px;padding:12px;cursor:pointer;user-select:none}
+.mod .modhead .mid{font-weight:700;letter-spacing:.18em;font-size:11px}
+.mod .modhead .mdot{color:var(--dim)}
+.mod .modbody{padding:4px 12px 8px;border-top:1px solid #e8dcbc}
+.mod.off .modbody{display:none}
+.mod.off{background:var(--panel)}
+.toggle{width:40px;min-width:40px;height:22px;border-radius:11px;background:#cbb98e;position:relative;transition:background .15s}
+.toggle::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:var(--panel2);transition:left .15s}
+.mod:not(.off) .toggle{background:var(--moss)}
+.mod:not(.off) .toggle::after{left:21px}
+
+.check{display:flex;align-items:center;gap:10px;margin-bottom:10px;cursor:pointer;user-select:none;letter-spacing:.12em;font-size:10px;text-transform:uppercase}
+.check .box{width:16px;min-width:16px;height:16px;border:1px solid #b8a67c;background:var(--panel2);display:flex;align-items:center;justify-content:center;color:var(--panel2);font-weight:700;font-size:11px}
+.check.on .box{background:var(--moss);border-color:var(--moss)}
+.check.on .box::after{content:'✓'}
+.note{color:#a08c62;font-size:9.5px;letter-spacing:.08em;line-height:1.7;text-transform:uppercase;margin:8px 0 10px}
+.smallbtn{padding:7px 12px;font-size:10px}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="brand">HERBARIUM</span>
+  <span class="sub">FIELD PLATE TOOL v1.0</span>
+  <span class="seedlab">SEED</span><span class="seedval" id="seedval">0</span>
+  <span class="spacer"></span>
+  <div class="btngroup">
+    <button class="primary" id="btnRandom">&#x21bb;&nbsp; RANDOMIZE</button>
+    <button id="btnChaos">&#x1F3B2;&nbsp; FULL CHAOS</button>
+    <button id="btnUndo" disabled>UNDO</button>
+    <button id="btnRedo" disabled>REDO</button>
+    <span class="vr"></span>
+    <button id="btnSVG">EXPORT SVG</button>
+    <button id="btnPNG2">PNG 2&times;</button>
+    <button id="btnPNG4">PNG 4&times;</button>
+  </div>
+</header>
+
+<main>
+<aside>
+  <div class="drop" id="drop">
+    DROP IMAGE / CLICK TO UPLOAD
+    <div class="src" id="srcname">SOURCE: COFFEA-BRANCH (TRANSPARENT PNG)</div>
+    <input type="file" id="file" accept="image/*" style="display:none">
+  </div>
+
+  <div class="section">
+    <h3>FRAME &nbsp;&middot;&nbsp; TYPE</h3>
+    <div class="row"><label class="name">Frame size</label>
+      <select id="frame">
+        <option value="1080x1440">PLATE 3:4 (1080)</option>
+        <option value="1080x1350">PORTRAIT 4:5 (1080)</option>
+        <option value="1080x1080">SQUARE 1:1 (1080)</option>
+        <option value="1080x1920">STORY 9:16 (1080)</option>
+        <option value="1440x1080">LANDSCAPE 4:3 (1440)</option>
+      </select></div>
+    <div class="row"><label class="name">Serif font</label>
+      <select id="seriffont">
+        <option value="Georgia,'Times New Roman',serif">GEORGIA</option>
+        <option value="'Times New Roman',Times,serif">TIMES</option>
+        <option value="'Palatino Linotype','Book Antiqua',serif">PALATINO</option>
+      </select></div>
+    <div class="row"><label class="name">Hand font</label>
+      <select id="handfont">
+        <option value="'Segoe Script','Lucida Handwriting',cursive">SEGOE SCRIPT</option>
+        <option value="'Lucida Handwriting',cursive">LUCIDA HAND</option>
+        <option value="'Brush Script MT',cursive">BRUSH SCRIPT</option>
+      </select></div>
+  </div>
+
+  <!-- A · PLATE FURNITURE -->
+  <div class="mod" id="modA">
+    <div class="modhead" data-mod="A"><div class="toggle"></div><span class="mid">A</span><span class="mdot">&middot;</span><span class="mid">PLATE FURNITURE</span></div>
+    <div class="modbody">
+      <div class="row"><label class="name">Binomial</label><input type="text" id="ptitle" value="Coffea arabica L."></div>
+      <div class="row"><label class="name">Common</label><input type="text" id="pcommon" value="the Arabian coffee"></div>
+      <div class="check on" id="ckPlateNo"><div class="box"></div>PLATE NUMBER</div>
+      <div class="check on" id="ckAnnot"><div class="box"></div>FIG. ANNOTATIONS</div>
+      <div class="check on" id="ckStamp"><div class="box"></div>COLLECTION STAMP</div>
+      <div class="check on" id="ckLabel"><div class="box"></div>LABEL CARD</div>
+      <div class="check on" id="ckScale"><div class="box"></div>SCALE BAR</div>
+      <div class="check" id="ckPacket"><div class="box"></div>FRAGMENT PACKET</div>
+      <button class="smallbtn" id="btnAnnot">&#x21bb;&nbsp; NEW ANNOTATIONS</button>
+      <div style="height:10px"></div>
+    </div>
+  </div>
+
+  <!-- B · ENGRAVING ENGINE -->
+  <div class="mod" id="modB">
+    <div class="modhead" data-mod="B"><div class="toggle"></div><span class="mid">B</span><span class="mdot">&middot;</span><span class="mid">ENGRAVING ENGINE</span></div>
+    <div class="modbody">
+      <div class="row"><label class="name">Style</label>
+        <select id="estyle"><option>HATCH</option><option>STIPPLE</option></select></div>
+      <div class="row"><label class="name">Spacing</label><span class="val" id="espacingV">6</span><input type="range" id="espacing" min="3.5" max="14" step="0.5" value="6"></div>
+      <div class="row"><label class="name">Gauge</label><span class="val" id="gaugeV">3.4</span><input type="range" id="gauge" min="1" max="7" step="0.2" value="3.4"></div>
+      <div class="row"><label class="name">Angle</label><span class="val" id="eangleV">28</span><input type="range" id="eangle" min="0" max="90" step="2" value="28"></div>
+      <div class="row"><label class="name">Layers</label><span class="val" id="layersV">3</span><input type="range" id="layers" min="1" max="3" step="1" value="3"></div>
+      <div class="row"><label class="name">Wobble</label><span class="val" id="wobbleV">1.4</span><input type="range" id="wobble" min="0" max="4" step="0.2" value="1.4"></div>
+      <div class="note">Ink ribbons whose width follows the tone. Layers add cross-hatch at steeper angles in the shadows. Wobble is the engraver's hand.</div>
+    </div>
+  </div>
+
+  <!-- C · SHEET LAYOUT -->
+  <div class="mod" id="modC">
+    <div class="modhead" data-mod="C"><div class="toggle"></div><span class="mid">C</span><span class="mdot">&middot;</span><span class="mid">SHEET LAYOUT</span></div>
+    <div class="modbody">
+      <div class="row"><label class="name">Specimens</label><span class="val" id="cellsV">1</span><input type="range" id="cells" min="1" max="5" step="1" value="1"></div>
+      <div class="row"><label class="name">Margin</label><span class="val" id="marginV">0.10</span><input type="range" id="margin" min="0.04" max="0.2" step="0.01" value="0.1"></div>
+      <div class="check on" id="ckStrips"><div class="box"></div>MOUNTING STRIPS</div>
+      <div class="check on" id="ckRule"><div class="box"></div>PLATE RULE BORDER</div>
+      <button class="smallbtn" id="btnReshuffle">&#x21bb;&nbsp; RESHUFFLE SHEET</button>
+      <div style="height:10px"></div>
+    </div>
+  </div>
+
+  <!-- D · PAPER & TINT -->
+  <div class="mod" id="modD">
+    <div class="modhead" data-mod="D"><div class="toggle"></div><span class="mid">D</span><span class="mdot">&middot;</span><span class="mid">PAPER &amp; TINT</span></div>
+    <div class="modbody">
+      <div class="row"><label class="name">Ink</label>
+        <select id="palette"><option value="IRONGALL">IRON GALL</option><option value="SEPIA">SEPIA INK</option><option value="PRUSSIAN">PRUSSIAN</option><option value="BOTANICAL">BOTANICAL</option><option value="CARMINE">CARMINE</option></select></div>
+      <div class="row"><label class="name">Hand tint</label><span class="val" id="tintV">0.45</span><input type="range" id="tint" min="0" max="1" step="0.05" value="0.45"></div>
+      <div class="row"><label class="name">Paper age</label><span class="val" id="ageV">0.55</span><input type="range" id="age" min="0" max="1" step="0.05" value="0.55"></div>
+      <div class="note">Hand tint lays a loose watercolour wash beneath the engraving, slightly out of register — the colourist worked fast.</div>
+    </div>
+  </div>
+
+  <!-- E · PRESS & WEAR -->
+  <div class="mod" id="modE">
+    <div class="modhead" data-mod="E"><div class="toggle"></div><span class="mid">E</span><span class="mdot">&middot;</span><span class="mid">PRESS &amp; WEAR</span></div>
+    <div class="modbody">
+      <div class="row"><label class="name">Plate wear</label><span class="val" id="wearV">0.20</span><input type="range" id="wear" min="0" max="0.7" step="0.05" value="0.2"></div>
+      <div class="row"><label class="name">Ink bleed</label><span class="val" id="bleedV">0.30</span><input type="range" id="bleed" min="0" max="1" step="0.05" value="0.3"></div>
+    </div>
+  </div>
+</aside>
+
+<div id="stagewrap"><div id="stage"></div></div>
+</main>
+
+<script>
+'use strict';
+/* ================= PRNG / HELPERS ================= */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function newSeed(){return Math.floor(Math.random()*9e8)+1e8;}
+function pick(rnd,arr){return arr[Math.floor(rnd()*arr.length)];}
+function clamp(v,a,b){return v<a?a:(v>b?b:v);}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function roman(n){
+  const M=[[1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],[100,'C'],[90,'XC'],[50,'L'],[40,'XL'],[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']];
+  let s='';for(const[v,r]of M){while(n>=v){s+=r;n-=v;}}return s;
+}
+
+/* ================= INK PALETTES ================= */
+const PALETTES={
+  IRONGALL:{paper:'#efe4c8',paperDark:'#e2d3ac',ink:'#2c2418',accent:'#6b4a24'},
+  SEPIA:   {paper:'#eeddba',paperDark:'#dfc99a',ink:'#3d2a16',accent:'#8a5a2a'},
+  PRUSSIAN:{paper:'#e9e2cd',paperDark:'#d9cfae',ink:'#1c2e42',accent:'#3a5a7a'},
+  BOTANICAL:{paper:'#ece5cc',paperDark:'#dcd2ad',ink:'#26301e',accent:'#5a6b3a'},
+  CARMINE: {paper:'#eee0c6',paperDark:'#dfcda3',ink:'#3c1a1a',accent:'#8a2a2a'}
+};
+
+/* ================= STATE ================= */
+let state={
+  seed:newSeed(), gridSeed:0, overlaySeed:0,
+  frame:'1080x1440',
+  seriffont:"Georgia,'Times New Roman',serif",
+  handfont:"'Segoe Script','Lucida Handwriting',cursive",
+  A:{on:true,title:'Coffea arabica L.',common:'the Arabian coffee',plateno:true,annot:true,stamp:true,label:true,scale:true,packet:false},
+  B:{on:true,style:'HATCH',spacing:6,gauge:3.4,angle:28,layers:3,wobble:1.4},
+  C:{on:true,cells:1,margin:0.1,strips:true,rule:true},
+  D:{on:true,palette:'IRONGALL',tint:0.45,age:0.55},
+  E:{on:true,wear:0.2,bleed:0.3}
+};
+state.gridSeed=state.seed^0xA5F1; state.overlaySeed=state.seed^0x3C7B;
+
+/* ================= HISTORY ================= */
+let history=[],future=[];
+function snapshot(){return JSON.stringify(state);}
+function commit(){history.push(snapshot());if(history.length>60)history.shift();future=[];updateHistBtns();}
+function updateHistBtns(){document.getElementById('btnUndo').disabled=history.length===0;document.getElementById('btnRedo').disabled=future.length===0;}
+function restore(json){const s=JSON.parse(json);for(const k in s){if(s[k]&&typeof s[k]==='object'&&state[k]&&typeof state[k]==='object')Object.assign(state[k],s[k]);else state[k]=s[k];}syncUI();render();}
+document.getElementById('btnUndo').onclick=()=>{if(!history.length)return;future.push(snapshot());restore(history.pop());updateHistBtns();};
+document.getElementById('btnRedo').onclick=()=>{if(!future.length)return;history.push(snapshot());restore(future.pop());updateHistBtns();};
+
+/* ================= SOURCE IMAGE ================= */
+const src={canvas:document.createElement('canvas'),w:0,h:0,rgba:null,gw:0,gh:0,hasAlpha:true,name:'COFFEA-BRANCH'};
+
+function drawLeaf(ctx,cx,cy,len,wid,ang){
+  ctx.save();ctx.translate(cx,cy);ctx.rotate(ang);
+  const g=ctx.createLinearGradient(0,-wid,0,wid);
+  g.addColorStop(0,'#3c5230');g.addColorStop(0.5,'#5c7a44');g.addColorStop(1,'#37492b');
+  ctx.fillStyle=g;
+  ctx.beginPath();ctx.moveTo(-len*0.5,0);
+  ctx.quadraticCurveTo(-len*0.1,-wid,len*0.42,-wid*0.18);
+  ctx.quadraticCurveTo(len*0.5,0,len*0.42,wid*0.18);
+  ctx.quadraticCurveTo(-len*0.1,wid,-len*0.5,0);
+  ctx.closePath();ctx.fill();
+  // darker rim
+  ctx.strokeStyle='#2a3a20';ctx.lineWidth=2.5;ctx.stroke();
+  // central vein
+  ctx.strokeStyle='#26331d';ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(-len*0.48,0);ctx.quadraticCurveTo(0,wid*0.06,len*0.46,0);ctx.stroke();
+  // side veins
+  ctx.lineWidth=1.4;ctx.strokeStyle='rgba(38,51,29,0.75)';
+  for(let t=-0.32;t<=0.34;t+=0.11){
+    const vx=t*len;
+    ctx.beginPath();ctx.moveTo(vx,0);
+    ctx.quadraticCurveTo(vx+len*0.1,-wid*0.5,vx+len*0.18,-wid*0.8*(1-Math.abs(t)*1.6));
+    ctx.stroke();
+    ctx.beginPath();ctx.moveTo(vx,0);
+    ctx.quadraticCurveTo(vx+len*0.1,wid*0.5,vx+len*0.18,wid*0.8*(1-Math.abs(t)*1.6));
+    ctx.stroke();
+  }
+  // sheen
+  ctx.fillStyle='rgba(255,255,230,0.14)';
+  ctx.beginPath();ctx.ellipse(-len*0.08,-wid*0.32,len*0.26,wid*0.2,-0.15,0,7);ctx.fill();
+  ctx.restore();
+}
+function drawCherry(ctx,cx,cy,r,ripe){
+  const g=ctx.createRadialGradient(cx-r*0.35,cy-r*0.4,r*0.15,cx,cy,r);
+  if(ripe){g.addColorStop(0,'#d96a55');g.addColorStop(0.55,'#a5322a');g.addColorStop(1,'#5c1414');}
+  else{g.addColorStop(0,'#b7d07a');g.addColorStop(0.55,'#7fa14c');g.addColorStop(1,'#465e26');}
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,r,0,7);ctx.fill();
+  ctx.fillStyle='rgba(255,255,235,0.5)';
+  ctx.beginPath();ctx.ellipse(cx-r*0.32,cy-r*0.4,r*0.24,r*0.14,-0.6,0,7);ctx.fill();
+  ctx.fillStyle='rgba(40,20,10,0.8)';ctx.beginPath();ctx.arc(cx,cy+r*0.7,r*0.13,0,7);ctx.fill();
+}
+function makeDefaultImage(){
+  const W=900,H=1200,c=src.canvas;c.width=W;c.height=H;
+  const ctx=c.getContext('2d');ctx.clearRect(0,0,W,H);
+  const r=mulberry32(1893);
+  // main stem — tapered, gently curved
+  const stem=[];const N=60;
+  for(let i=0;i<=N;i++){
+    const t=i/N;
+    const x=430+Math.sin(t*2.4)*70+t*60;
+    const y=1140-t*1020;
+    stem.push([x,y,9*(1-t*0.72)+2]);
+  }
+  ctx.fillStyle='#4a3320';
+  for(const[x,y,w]of stem){ctx.beginPath();ctx.arc(x,y,w,0,7);ctx.fill();}
+  // bark shading
+  ctx.fillStyle='rgba(30,20,10,0.4)';
+  for(const[x,y,w]of stem){ctx.beginPath();ctx.arc(x+w*0.4,y,w*0.45,0,7);ctx.fill();}
+  // leaves — opposite pairs along the stem
+  const nodes=[0.12,0.26,0.4,0.54,0.68,0.82,0.94];
+  nodes.forEach((t,i)=>{
+    const idx=Math.round(t*N);const[sx,sy]=stem[idx];
+    const len=210*(1-t*0.35),wid=62*(1-t*0.3);
+    const baseAng=Math.sin(t*7)*0.12;
+    drawLeaf(ctx,sx-len*0.42,sy-8,len,wid,Math.PI+0.5+baseAng+(r()-0.5)*0.2);
+    drawLeaf(ctx,sx+len*0.42,sy+6,len,wid,-0.5+baseAng+(r()-0.5)*0.2);
+    // petioles
+    ctx.strokeStyle='#3c2a18';ctx.lineWidth=4;
+    ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(sx-len*0.18,sy-6);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(sx+len*0.18,sy+4);ctx.stroke();
+  });
+  // cherry clusters at two lower nodes
+  [[0.2,true],[0.34,false]].forEach(([t,ripe])=>{
+    const idx=Math.round(t*N);const[sx,sy]=stem[idx];
+    for(let k=0;k<7;k++){
+      const a=r()*Math.PI*2,d=14+r()*30;
+      drawCherry(ctx,sx+Math.cos(a)*d,sy+Math.sin(a)*d*0.7+10,15+r()*6,ripe||r()<0.4);
+    }
+  });
+  // a detached seed pair, bottom-left (classic plate detail)
+  const bx=180,by=1080;
+  ctx.fillStyle='#7a5a34';
+  ctx.beginPath();ctx.ellipse(bx,by,26,40,0.2,0,7);ctx.fill();
+  ctx.beginPath();ctx.ellipse(bx+64,by+10,26,40,-0.15,0,7);ctx.fill();
+  ctx.strokeStyle='#3c2a14';ctx.lineWidth=3.5;
+  ctx.beginPath();ctx.moveTo(bx,by-34);ctx.quadraticCurveTo(bx+6,by,bx,by+34);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(bx+64,by-24);ctx.quadraticCurveTo(bx+70,by+10,bx+64,by+44);ctx.stroke();
+  ctx.fillStyle='rgba(255,240,210,0.3)';
+  ctx.beginPath();ctx.ellipse(bx-8,by-14,9,16,0.3,0,7);ctx.fill();
+  src.w=W;src.h=H;buildBuffers();
+}
+function buildBuffers(){
+  const gw=Math.min(700,src.w);const gh=Math.round(gw*src.h/src.w);
+  const c=document.createElement('canvas');c.width=gw;c.height=gh;
+  const ctx=c.getContext('2d');ctx.drawImage(src.canvas,0,0,gw,gh);
+  const d=ctx.getImageData(0,0,gw,gh).data;
+  src.rgba=d;src.gw=gw;src.gh=gh;
+  src.hasAlpha=false;
+  for(let i=3;i<d.length;i+=16){if(d[i]<250){src.hasAlpha=true;break;}}
+}
+function loadFile(file){
+  const rd=new FileReader();
+  rd.onload=e=>{const img=new Image();img.onload=()=>{
+    const maxW=1400;const sc=Math.min(1,maxW/Math.max(img.width,img.height));
+    src.canvas.width=Math.round(img.width*sc);src.canvas.height=Math.round(img.height*sc);
+    const ctx=src.canvas.getContext('2d');ctx.clearRect(0,0,src.canvas.width,src.canvas.height);
+    ctx.drawImage(img,0,0,src.canvas.width,src.canvas.height);
+    src.w=src.canvas.width;src.h=src.canvas.height;buildBuffers();
+    src.name=file.name.replace(/\.[^.]+$/,'').toUpperCase().slice(0,30);
+    document.getElementById('srcname').textContent='SOURCE: '+src.name+(src.hasAlpha?' (CUTOUT)':' (OPAQUE)');
+    commit();render();
+  };img.src=e.target.result;};
+  rd.readAsDataURL(file);
+}
+
+/* ================= DARKNESS SAMPLER (alpha-aware) ================= */
+function darkAt(sx,sy){
+  const gx=Math.max(0,Math.min(src.gw-1,Math.round(sx/src.w*src.gw)));
+  const gy=Math.max(0,Math.min(src.gh-1,Math.round(sy/src.h*src.gh)));
+  const i=(gy*src.gw+gx)*4;
+  const a=src.rgba[i+3]/255;
+  if(a<0.45)return 0;
+  const lum=(0.2126*src.rgba[i]+0.7152*src.rgba[i+1]+0.0722*src.rgba[i+2])/255;
+  return (1-lum)*a;
+}
+
+/* ================= ENGRAVING ENGINE ================= */
+function ribbon(pts,pxu,pyu){
+  let d='M';
+  for(let i=0;i<pts.length;i++){const p=pts[i];
+    d+=(i?'L':'')+(p[0]+pxu*p[2]).toFixed(1)+' '+(p[1]+pyu*p[2]).toFixed(1);}
+  for(let i=pts.length-1;i>=0;i--){const p=pts[i];
+    d+='L'+(p[0]-pxu*p[2]).toFixed(1)+' '+(p[1]-pyu*p[2]).toFixed(1);}
+  return d+'Z';
+}
+function hatchLayer(cell,angleDeg,cut,gauge,spacing,wobble,wear,valueFn){
+  const a=angleDeg*Math.PI/180,ca=Math.cos(a),sa=Math.sin(a);
+  const cx=cell.x+cell.w/2,cy=cell.y+cell.h/2;
+  const R=Math.hypot(cell.w,cell.h)/2+4;
+  const step=3;
+  const parts=[];
+  for(let v=-R;v<=R;v+=spacing){
+    const ph=v*0.7,ph2=v*1.31;
+    let seg=null;
+    for(let u=-R;u<=R+0.01;u+=step){
+      const wob=wobble*(Math.sin(u*0.11+ph)+0.6*Math.sin(u*0.031+ph2+2));
+      const x=cx+u*ca-(v+wob)*sa;
+      const y=cy+u*sa+(v+wob)*ca;
+      let d=0;
+      if(x>cell.x+1&&x<cell.x+cell.w-1&&y>cell.y+1&&y<cell.y+cell.h-1){
+        const nx=(x-cell.x)/cell.w, ny=(y-cell.y)/cell.h;
+        d=valueFn(cell.crop.x+nx*cell.crop.w, cell.crop.y+ny*cell.crop.h);
+      }
+      if(d>cut&&wear>0){
+        const n=Math.sin(u*0.53+v*3.1)*Math.sin(u*0.171+v*1.7);
+        if(n>1-wear*1.5)d=0;
+      }
+      if(d>cut){
+        const t=Math.min(1,(d-cut)/(1-cut)*1.15);
+        const hw=Math.max(0.22,t*gauge*0.5);
+        if(!seg)seg=[];
+        seg.push([x,y,hw]);
+      }else if(seg){
+        if(seg.length>1)parts.push(ribbon(seg,-sa,ca));
+        seg=null;
+      }
+    }
+    if(seg&&seg.length>1)parts.push(ribbon(seg,-sa,ca));
+  }
+  return parts.join('');
+}
+function stippleLayer(cell,cut,gauge,spacing,rnd,valueFn){
+  const parts=[];
+  for(let y=cell.y;y<cell.y+cell.h;y+=spacing){
+    for(let x=cell.x;x<cell.x+cell.w;x+=spacing){
+      const jx=x+(rnd()-0.5)*spacing,jy=y+(rnd()-0.5)*spacing;
+      const nx=(jx-cell.x)/cell.w, ny=(jy-cell.y)/cell.h;
+      if(nx<0||nx>1||ny<0||ny>1)continue;
+      const d=valueFn(cell.crop.x+nx*cell.crop.w, cell.crop.y+ny*cell.crop.h);
+      if(d<cut)continue;
+      const t=(d-cut)/(1-cut);
+      if(rnd()>t*t*1.4)continue;
+      const r=Math.max(0.5,gauge*0.34*(0.5+t*0.7));
+      const R=r.toFixed(2);
+      parts.push('M'+(jx-r).toFixed(1)+' '+jy.toFixed(1)+'a'+R+' '+R+' 0 1 0 '+(r*2).toFixed(2)+' 0a'+R+' '+R+' 0 1 0 '+(-r*2).toFixed(2)+' 0Z');
+    }
+  }
+  return parts.join('');
+}
+function engraveCell(cell,pal){
+  const B=state.B;
+  let inks='';
+  if(B.style==='STIPPLE'){
+    const rnd=mulberry32(state.gridSeed^0x5717);
+    inks='<path fill="'+pal.ink+'" d="'+stippleLayer(cell,0.08,B.gauge,B.spacing,rnd,darkAt)+'"/>';
+  }else{
+    const angles=[B.angle,B.angle+62,B.angle-51];
+    const cuts=[0.1,0.42,0.68];
+    const gauges=[B.gauge,B.gauge*0.8,B.gauge*0.65];
+    for(let L=0;L<B.layers;L++){
+      inks+='<path fill="'+pal.ink+'" d="'+hatchLayer(cell,angles[L],cuts[L],gauges[L],B.spacing,B.wobble,state.E.on?state.E.wear:0,darkAt)+'"/>';
+    }
+  }
+  if(state.E.on&&state.E.bleed>0.02){
+    return '<g filter="url(#bleedf)" opacity="'+(state.E.bleed*0.55).toFixed(2)+'">'+inks+'</g>'+inks;
+  }
+  return inks;
+}
+
+/* ================= TINT WASH ================= */
+function tintData(cell){
+  const scale=Math.min(1.2,900/Math.max(cell.w,1));
+  const w=Math.max(8,Math.round(cell.w*scale)),h=Math.max(8,Math.round(cell.h*scale));
+  const c=document.createElement('canvas');c.width=w;c.height=h;
+  const ctx=c.getContext('2d');
+  ctx.filter='saturate(0.6) brightness(1.18) contrast(0.9) blur('+Math.max(2,4*scale)+'px)';
+  // slight overscale — the colourist ran past the lines
+  ctx.drawImage(src.canvas,cell.crop.x,cell.crop.y,cell.crop.w,cell.crop.h,-w*0.015,-h*0.015,w*1.03,h*1.03);
+  return c.toDataURL('image/png');
+}
+
+/* ================= LAYOUT ================= */
+function computeLayout(W,H){
+  const rnd=mulberry32(state.gridSeed);
+  const m=Math.round(Math.min(W,H)*state.C.margin);
+  const content={x:m,y:m,w:W-m*2,h:H-m*2-Math.round(H*0.1)}; // reserve bottom band for furniture
+  const n=state.C.on?state.C.cells:1;
+  let rects=[{...content}];
+  while(rects.length<n){
+    rects.sort((a,b)=>b.w*b.h-a.w*a.h);
+    const c=rects.shift();
+    const vertical=c.w/c.h>1.1?true:(c.h/c.w>1.1?false:rnd()<0.5);
+    let t=0.5+(rnd()-0.5)*0.4;
+    if(vertical){const w1=Math.round(c.w*t);rects.push({x:c.x,y:c.y,w:w1,h:c.h},{x:c.x+w1,y:c.y,w:c.w-w1,h:c.h});}
+    else{const h1=Math.round(c.h*t);rects.push({x:c.x,y:c.y,w:c.w,h:h1},{x:c.x,y:c.y+h1,w:c.w,h:c.h-h1});}
+  }
+  const gap=12;
+  const cells=rects.map(c=>{
+    const cc={x:c.x+gap,y:c.y+gap,w:c.w-gap*2,h:c.h-gap*2};
+    const aspect=cc.w/cc.h;
+    let cw,ch;
+    if(src.w/src.h>aspect){ch=src.h;cw=ch*aspect;}else{cw=src.w;ch=cw/aspect;}
+    const zoom=n===1?1:(1+rnd()*1.3);
+    cw/=zoom;ch/=zoom;
+    cc.crop={x:rnd()*(src.w-cw),y:rnd()*(src.h-ch),w:cw,h:ch};
+    cc.tilt=(rnd()-0.5)*(n===1?1.2:3);
+    return cc;
+  });
+  return {cells,content};
+}
+
+/* ================= PLATE FURNITURE ================= */
+const ANNOT_TERMS=['folium','fructus','semen','flos','ramulus','cortex','nervatio','petiolus'];
+function furnitureSVG(W,H,pal,serif,hand,content){
+  const orn=mulberry32(state.overlaySeed);
+  const A=state.A;
+  let s='<g fill="'+pal.ink+'">';
+
+  if(A.plateno){
+    s+='<text x="'+(W/2)+'" y="'+Math.round(H*0.055)+'" text-anchor="middle" font-family="'+esc(serif)+'" font-size="17" letter-spacing="6">PLATE '+roman(1+Math.floor(orn()*98))+'.</text>';
+  }
+  // binomial + common name, bottom center
+  const ty=H-Math.round(H*0.052);
+  s+='<text x="'+(W/2)+'" y="'+ty+'" text-anchor="middle" font-family="'+esc(serif)+'" font-size="30" font-style="italic">'+esc(A.title)+'</text>';
+  if(A.common)s+='<text x="'+(W/2)+'" y="'+(ty+26)+'" text-anchor="middle" font-family="'+esc(serif)+'" font-size="14" letter-spacing="3" opacity="0.8">&#8212; '+esc(A.common)+' &#8212;</text>';
+
+  if(A.annot){
+    // lettered annotations with pointer lines into the specimen area
+    const nAn=2+Math.floor(orn()*2);
+    const used=[];
+    let capline='';
+    for(let i=0;i<nAn;i++){
+      const letter=String.fromCharCode(97+i);
+      const term=pick(orn,ANNOT_TERMS.filter(t=>!used.includes(t)));used.push(term);
+      // target point inside content
+      const txp=content.x+content.w*(0.25+orn()*0.5);
+      const typ=content.y+content.h*(0.15+orn()*0.6);
+      // label point offset outward
+      const side=orn()<0.5?-1:1;
+      const lxp=txp+side*(60+orn()*70);
+      const lyp=typ-(20+orn()*50);
+      s+='<path d="M'+lxp.toFixed(0)+' '+lyp.toFixed(0)+' Q'+((lxp+txp)/2).toFixed(0)+' '+(lyp+14).toFixed(0)+' '+txp.toFixed(0)+' '+typ.toFixed(0)+'" fill="none" stroke="'+pal.ink+'" stroke-width="1.1"/>';
+      s+='<circle cx="'+txp.toFixed(0)+'" cy="'+typ.toFixed(0)+'" r="1.8"/>';
+      s+='<text x="'+lxp.toFixed(0)+'" y="'+(lyp-4).toFixed(0)+'" font-family="'+esc(serif)+'" font-size="17" font-style="italic">'+letter+'.</text>';
+      capline+=letter+'. '+term+'&#160;&#160;&#160;';
+    }
+    s+='<text x="'+content.x+'" y="'+(H-Math.round(H*0.022))+'" font-family="'+esc(serif)+'" font-size="13" font-style="italic" opacity="0.85">'+capline+'</text>';
+  }
+
+  if(A.scale){
+    const sw=Math.round(W*0.14);
+    const sx0=W-content.x-sw, sy0=H-Math.round(H*0.026);
+    s+='<g stroke="'+pal.ink+'" stroke-width="1.4">';
+    s+='<line x1="'+sx0+'" y1="'+sy0+'" x2="'+(sx0+sw)+'" y2="'+sy0+'"/>';
+    s+='<line x1="'+sx0+'" y1="'+(sy0-5)+'" x2="'+sx0+'" y2="'+(sy0+5)+'"/>';
+    s+='<line x1="'+(sx0+sw/2)+'" y1="'+(sy0-3)+'" x2="'+(sx0+sw/2)+'" y2="'+(sy0+3)+'"/>';
+    s+='<line x1="'+(sx0+sw)+'" y1="'+(sy0-5)+'" x2="'+(sx0+sw)+'" y2="'+(sy0+5)+'"/></g>';
+    s+='<text x="'+(sx0+sw/2)+'" y="'+(sy0-8)+'" text-anchor="middle" font-family="'+esc(serif)+'" font-size="12">5 cm.</text>';
+  }
+
+  if(A.stamp){
+    const scx=W*(0.72+orn()*0.12),scy=H*(0.1+orn()*0.06);
+    const rx=96,ry=54;
+    const rot=(orn()-0.5)*24;
+    s+='<g transform="rotate('+rot.toFixed(1)+' '+scx.toFixed(0)+' '+scy.toFixed(0)+')" opacity="0.5" fill="'+pal.accent+'" stroke="'+pal.accent+'">';
+    s+='<ellipse cx="'+scx.toFixed(0)+'" cy="'+scy.toFixed(0)+'" rx="'+rx+'" ry="'+ry+'" fill="none" stroke-width="2.4"/>';
+    s+='<ellipse cx="'+scx.toFixed(0)+'" cy="'+scy.toFixed(0)+'" rx="'+(rx-7)+'" ry="'+(ry-7)+'" fill="none" stroke-width="1.1"/>';
+    s+='<text x="'+scx.toFixed(0)+'" y="'+(scy-8).toFixed(0)+'" text-anchor="middle" font-family="'+esc(serif)+'" font-size="13" letter-spacing="2" stroke="none">HERB. HORT. BOT.</text>';
+    s+='<text x="'+scx.toFixed(0)+'" y="'+(scy+12).toFixed(0)+'" text-anchor="middle" font-family="'+esc(serif)+'" font-size="12" stroke="none">No. '+(100+Math.floor(orn()*900))+'</text>';
+    s+='<text x="'+scx.toFixed(0)+'" y="'+(scy+30).toFixed(0)+'" text-anchor="middle" font-family="'+esc(serif)+'" font-size="11" stroke="none">'+(1+Math.floor(orn()*28))+'.'+roman(1+Math.floor(orn()*12))+'.'+(1860+Math.floor(orn()*60))+'</text>';
+    s+='</g>';
+  }
+
+  if(A.label){
+    const lw=W*0.3,lh=118;
+    const lx=W-content.x-lw,ly=H-Math.round(H*0.1)-lh-8;
+    const day=1+Math.floor(orn()*28),mo=roman(1+Math.floor(orn()*12)),yr=1860+Math.floor(orn()*60);
+    const no=1000+Math.floor(orn()*9000);
+    s+='<g transform="rotate('+((orn()-0.5)*2.4).toFixed(1)+' '+(lx+lw/2).toFixed(0)+' '+(ly+lh/2).toFixed(0)+')">';
+    s+='<rect x="'+lx.toFixed(0)+'" y="'+ly+'" width="'+lw.toFixed(0)+'" height="'+lh+'" fill="'+pal.paper+'" stroke="'+pal.ink+'" stroke-width="1.6"/>';
+    s+='<rect x="'+(lx+4).toFixed(0)+'" y="'+(ly+4)+'" width="'+(lw-8).toFixed(0)+'" height="'+(lh-8)+'" fill="none" stroke="'+pal.ink+'" stroke-width="0.7"/>';
+    s+='<text x="'+(lx+lw/2).toFixed(0)+'" y="'+(ly+24)+'" text-anchor="middle" font-family="'+esc(serif)+'" font-size="12" letter-spacing="3">HORTUS SICCUS</text>';
+    const rows=[['Fam.','Rubiaceae'],['Sp.',state.A.title],['Loc.','\u2014'],['Dat.',day+'.'+mo+'.'+yr],['No.',String(no)]];
+    rows.forEach((rw,i)=>{
+      const ry2=ly+44+i*15;
+      s+='<text x="'+(lx+12).toFixed(0)+'" y="'+ry2+'" font-family="'+esc(serif)+'" font-size="11">'+esc(rw[0])+'</text>';
+      s+='<text x="'+(lx+48).toFixed(0)+'" y="'+ry2+'" font-family="'+esc(hand)+'" font-size="12" font-style="italic" opacity="0.9">'+esc(rw[1])+'</text>';
+      s+='<line x1="'+(lx+44).toFixed(0)+'" y1="'+(ry2+2)+'" x2="'+(lx+lw-12).toFixed(0)+'" y2="'+(ry2+2)+'" stroke="'+pal.ink+'" stroke-width="0.5" opacity="0.5"/>';
+    });
+    s+='</g>';
+  }
+
+  if(A.packet){
+    const pw=W*0.17,ph2=pw*0.68;
+    const pxp=content.x+6,pyp=H-Math.round(H*0.1)-ph2-14;
+    s+='<g transform="rotate('+((orn()-0.5)*4).toFixed(1)+' '+(pxp+pw/2).toFixed(0)+' '+(pyp+ph2/2).toFixed(0)+')">';
+    s+='<rect x="'+pxp.toFixed(0)+'" y="'+pyp.toFixed(0)+'" width="'+pw.toFixed(0)+'" height="'+ph2.toFixed(0)+'" fill="'+pal.paperDark+'" stroke="'+pal.ink+'" stroke-width="1.3"/>';
+    s+='<path d="M'+pxp.toFixed(0)+' '+pyp.toFixed(0)+' L'+(pxp+pw/2).toFixed(0)+' '+(pyp+ph2*0.42).toFixed(0)+' L'+(pxp+pw).toFixed(0)+' '+pyp.toFixed(0)+'" fill="none" stroke="'+pal.ink+'" stroke-width="1"/>';
+    s+='<text x="'+(pxp+pw/2).toFixed(0)+'" y="'+(pyp+ph2*0.72).toFixed(0)+'" text-anchor="middle" font-family="'+esc(hand)+'" font-size="12" font-style="italic" opacity="0.85">semina</text>';
+    s+='</g>';
+  }
+
+  s+='</g>';
+  return s;
+}
+
+/* ================= BUILD ================= */
+function buildSVG(){
+  const [W,H]=state.frame.split('x').map(Number);
+  const pal=PALETTES[state.D.on?state.D.palette:'IRONGALL'];
+  const serif=state.seriffont,hand=state.handfont;
+  const prnd=mulberry32(state.gridSeed^0xFA9);
+  let defs='',body='';
+
+  defs+='<filter id="bleedf" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="1.1"/></filter>';
+  defs+='<filter id="blot" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="26"/></filter>';
+  defs+='<radialGradient id="fox"><stop offset="0%" stop-color="'+pal.accent+'" stop-opacity="0.55"/><stop offset="100%" stop-color="'+pal.accent+'" stop-opacity="0"/></radialGradient>';
+  defs+='<radialGradient id="vigg" cx="0.5" cy="0.5" r="0.75"><stop offset="0%" stop-color="'+pal.ink+'" stop-opacity="0"/><stop offset="72%" stop-color="'+pal.ink+'" stop-opacity="0"/><stop offset="100%" stop-color="'+pal.ink+'" stop-opacity="0.6"/></radialGradient>';
+
+  // paper
+  body+='<rect width="'+W+'" height="'+H+'" fill="'+pal.paper+'"/>';
+  const age=state.D.on?state.D.age:0.4;
+  if(age>0.02){
+    // mottling
+    body+='<g filter="url(#blot)" opacity="'+(age*0.5).toFixed(2)+'">';
+    for(let i=0;i<7;i++){
+      body+='<ellipse cx="'+(prnd()*W).toFixed(0)+'" cy="'+(prnd()*H).toFixed(0)+'" rx="'+(90+prnd()*220).toFixed(0)+'" ry="'+(70+prnd()*180).toFixed(0)+'" fill="'+pal.paperDark+'"/>';
+    }
+    body+='</g>';
+    // foxing spots
+    const nf=Math.round(age*46);
+    for(let i=0;i<nf;i++){
+      const fr=2+prnd()*9;
+      body+='<circle cx="'+(prnd()*W).toFixed(0)+'" cy="'+(prnd()*H).toFixed(0)+'" r="'+fr.toFixed(1)+'" fill="url(#fox)" opacity="'+(0.3+prnd()*0.5).toFixed(2)+'"/>';
+    }
+  }
+
+  const {cells,content}=computeLayout(W,H);
+
+  // plate rule border
+  if(state.C.rule){
+    const rm=Math.round(Math.min(W,H)*state.C.margin*0.55);
+    body+='<rect x="'+rm+'" y="'+rm+'" width="'+(W-rm*2)+'" height="'+(H-rm*2)+'" fill="none" stroke="'+pal.ink+'" stroke-width="1.8"/>';
+    body+='<rect x="'+(rm+6)+'" y="'+(rm+6)+'" width="'+(W-rm*2-12)+'" height="'+(H-rm*2-12)+'" fill="none" stroke="'+pal.ink+'" stroke-width="0.7"/>';
+  }
+
+  // specimens
+  cells.forEach((c,i)=>{
+    const ccx=c.x+c.w/2,ccy=c.y+c.h/2;
+    let inner='';
+    // hand-tint wash beneath the engraving
+    if(state.D.on&&state.D.tint>0.02){
+      inner+='<image x="'+c.x.toFixed(0)+'" y="'+c.y.toFixed(0)+'" width="'+c.w.toFixed(0)+'" height="'+c.h.toFixed(0)+'" preserveAspectRatio="none" href="'+tintData(c)+'" opacity="'+state.D.tint.toFixed(2)+'"/>';
+    }
+    if(state.B.on)inner+=engraveCell(c,pal);
+    body+='<g transform="rotate('+c.tilt.toFixed(2)+' '+ccx.toFixed(0)+' '+ccy.toFixed(0)+')">'+inner+'</g>';
+    // mounting strips — gummed linen tape, only meaningful for cutouts
+    if(state.C.strips){
+      const srn=mulberry32(state.gridSeed+i*61);
+      const nStrips=src.hasAlpha?(2+Math.floor(srn()*2)):4;
+      for(let k=0;k<nStrips;k++){
+        const along=srn();
+        let sxp,syp,ang;
+        if(src.hasAlpha){
+          sxp=c.x+c.w*(0.3+along*0.4);
+          syp=c.y+c.h*(0.18+srn()*0.55);
+          ang=(srn()<0.5?0:90)+(srn()-0.5)*8;
+        }else{
+          const edge=k%4;
+          sxp=edge<2?c.x+c.w*along:(edge===2?c.x+6:c.x+c.w-6);
+          syp=edge<2?(edge===0?c.y+6:c.y+c.h-6):c.y+c.h*along;
+          ang=(edge<2?0:90)+(srn()-0.5)*6;
+        }
+        const tw=54+srn()*30;
+        body+='<g transform="rotate('+ang.toFixed(1)+' '+sxp.toFixed(0)+' '+syp.toFixed(0)+')" opacity="0.82">'+
+          '<rect x="'+(sxp-tw/2).toFixed(0)+'" y="'+(syp-9).toFixed(0)+'" width="'+tw.toFixed(0)+'" height="18" fill="'+pal.paperDark+'" stroke="'+pal.ink+'" stroke-width="0.6" stroke-opacity="0.4"/></g>';
+      }
+    }
+  });
+
+  // furniture
+  if(state.A.on)body+=furnitureSVG(W,H,pal,serif,hand,content);
+
+  // age vignette
+  if(age>0.02)body+='<rect width="'+W+'" height="'+H+'" fill="url(#vigg)" opacity="'+(age*0.35).toFixed(2)+'"/>';
+
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'"><defs>'+defs+'</defs>'+body+'</svg>';
+}
+
+let rafPending=false;
+function render(){
+  if(rafPending)return;rafPending=true;
+  requestAnimationFrame(()=>{rafPending=false;
+    document.getElementById('stage').innerHTML=buildSVG();
+    document.getElementById('seedval').textContent=state.seed;
+  });
+}
+
+/* ================= EXPORT ================= */
+function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000);}
+document.getElementById('btnSVG').onclick=()=>download(new Blob([buildSVG()],{type:'image/svg+xml'}),'herbarium-'+state.seed+'.svg');
+function exportPNG(scale){
+  const [W,H]=state.frame.split('x').map(Number);
+  const svg=buildSVG();
+  const url=URL.createObjectURL(new Blob([svg],{type:'image/svg+xml'}));
+  const img=new Image();
+  img.onload=()=>{const c=document.createElement('canvas');c.width=W*scale;c.height=H*scale;
+    c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+    c.toBlob(b=>download(b,'herbarium-'+state.seed+'@'+scale+'x.png'),'image/png');
+    URL.revokeObjectURL(url);};
+  img.onerror=()=>{URL.revokeObjectURL(url);alert('PNG export failed: the SVG did not parse as strict XML.');};
+  img.src=url;
+}
+document.getElementById('btnPNG2').onclick=()=>exportPNG(2);
+document.getElementById('btnPNG4').onclick=()=>exportPNG(4);
+
+/* ================= RANDOMIZE / CHAOS / RESHUFFLE / ANNOT ================= */
+document.getElementById('btnRandom').onclick=()=>{
+  commit();
+  const S=newSeed();const r=mulberry32(S);
+  state.seed=S;state.gridSeed=S^0xA5F1;state.overlaySeed=S^0x3C7B;
+  state.B.spacing=+(4.5+r()*5).toFixed(1);
+  state.B.gauge=+(2.4+r()*2.4).toFixed(1);
+  state.B.angle=Math.round(10+r()*35);
+  state.B.layers=2+Math.floor(r()*2);
+  state.B.wobble=+(0.8+r()*1.6).toFixed(1);
+  state.D.tint=+(0.2+r()*0.5).toFixed(2);
+  state.D.age=+(0.3+r()*0.5).toFixed(2);
+  state.E.wear=+(r()*0.35).toFixed(2);
+  state.E.bleed=+(0.1+r()*0.4).toFixed(2);
+  if(r()<0.4)state.D.palette=pick(r,Object.keys(PALETTES));
+  syncUI();render();
+};
+document.getElementById('btnChaos').onclick=()=>{
+  commit();
+  const S=newSeed();const r=mulberry32(S);
+  const chance=p=>r()<p;
+  state.seed=S;state.gridSeed=newSeed();state.overlaySeed=newSeed();
+  state.seriffont=pick(r,["Georgia,'Times New Roman',serif","'Times New Roman',Times,serif","'Palatino Linotype','Book Antiqua',serif"]);
+  state.handfont=pick(r,["'Segoe Script','Lucida Handwriting',cursive","'Lucida Handwriting',cursive","'Brush Script MT',cursive"]);
+  state.A.on=chance(0.92);
+  state.A.plateno=chance(0.75);
+  state.A.annot=chance(0.65);
+  state.A.stamp=chance(0.6);
+  state.A.label=chance(0.6);
+  state.A.scale=chance(0.6);
+  state.A.packet=chance(0.35);
+  state.B.style=pick(r,['HATCH','HATCH','STIPPLE']);
+  state.B.spacing=+(3.5+r()*10.5).toFixed(1);
+  state.B.gauge=+(1+r()*6).toFixed(1);
+  state.B.angle=Math.round(r()*90);
+  state.B.layers=1+Math.floor(r()*3);
+  state.B.wobble=+(r()*4).toFixed(1);
+  state.C.cells=1+Math.floor(r()*5);
+  state.C.margin=+(0.04+r()*0.16).toFixed(2);
+  state.C.strips=chance(0.7);
+  state.C.rule=chance(0.7);
+  state.D.palette=pick(r,Object.keys(PALETTES));
+  state.D.tint=+r().toFixed(2);
+  state.D.age=+r().toFixed(2);
+  state.E.on=chance(0.9);
+  state.E.wear=+(r()*0.7).toFixed(2);
+  state.E.bleed=+r().toFixed(2);
+  syncUI();render();
+};
+document.getElementById('btnReshuffle').onclick=()=>{commit();state.gridSeed=newSeed();render();};
+document.getElementById('btnAnnot').onclick=()=>{commit();state.overlaySeed=newSeed();render();};
+
+/* ================= UI WIRING ================= */
+function bindRange(id,obj,key,fmt){
+  const el=document.getElementById(id),lab=document.getElementById(id+'V');
+  el.addEventListener('input',()=>{obj[key]=+el.value;if(lab)lab.textContent=fmt?fmt(+el.value):el.value;render();});
+  el.addEventListener('change',()=>commit());
+}
+function bindSelect(id,obj,key){
+  const el=document.getElementById(id);
+  el.addEventListener('change',()=>{commit();obj[key]=el.value;render();});
+}
+function bindText(id,obj,key){
+  const el=document.getElementById(id);
+  el.addEventListener('input',()=>{obj[key]=el.value;render();});
+  el.addEventListener('change',()=>commit());
+}
+function bindCheck(id,obj,key){
+  const el=document.getElementById(id);
+  el.addEventListener('click',()=>{commit();obj[key]=!obj[key];el.classList.toggle('on',obj[key]);render();});
+}
+document.querySelectorAll('.modhead').forEach(h=>{
+  h.addEventListener('click',e=>{
+    if(e.target.closest('input,select,button'))return;
+    const m=h.dataset.mod;commit();
+    state[m].on=!state[m].on;
+    document.getElementById('mod'+m).classList.toggle('off',!state[m].on);
+    render();
+  });
+});
+document.querySelectorAll('.modbody').forEach(b=>b.addEventListener('click',e=>e.stopPropagation()));
+
+bindSelect('frame',state,'frame');
+bindSelect('seriffont',state,'seriffont');
+bindSelect('handfont',state,'handfont');
+bindText('ptitle',state.A,'title');
+bindText('pcommon',state.A,'common');
+bindCheck('ckPlateNo',state.A,'plateno');
+bindCheck('ckAnnot',state.A,'annot');
+bindCheck('ckStamp',state.A,'stamp');
+bindCheck('ckLabel',state.A,'label');
+bindCheck('ckScale',state.A,'scale');
+bindCheck('ckPacket',state.A,'packet');
+bindSelect('estyle',state.B,'style');
+bindRange('espacing',state.B,'spacing',v=>v.toFixed(1));
+bindRange('gauge',state.B,'gauge',v=>v.toFixed(1));
+bindRange('eangle',state.B,'angle');
+bindRange('layers',state.B,'layers');
+bindRange('wobble',state.B,'wobble',v=>v.toFixed(1));
+bindRange('cells',state.C,'cells');
+bindRange('margin',state.C,'margin',v=>v.toFixed(2));
+bindCheck('ckStrips',state.C,'strips');
+bindCheck('ckRule',state.C,'rule');
+bindSelect('palette',state.D,'palette');
+bindRange('tint',state.D,'tint',v=>v.toFixed(2));
+bindRange('age',state.D,'age',v=>v.toFixed(2));
+bindRange('wear',state.E,'wear',v=>v.toFixed(2));
+bindRange('bleed',state.E,'bleed',v=>v.toFixed(2));
+
+function syncUI(){
+  document.getElementById('frame').value=state.frame;
+  document.getElementById('seriffont').value=state.seriffont;
+  document.getElementById('handfont').value=state.handfont;
+  const set=(id,v,fmt)=>{document.getElementById(id).value=v;const l=document.getElementById(id+'V');if(l)l.textContent=fmt?fmt(+v):v;};
+  document.getElementById('ptitle').value=state.A.title;
+  document.getElementById('pcommon').value=state.A.common;
+  document.getElementById('estyle').value=state.B.style;
+  set('espacing',state.B.spacing,v=>v.toFixed(1));set('gauge',state.B.gauge,v=>v.toFixed(1));
+  set('eangle',state.B.angle);set('layers',state.B.layers);set('wobble',state.B.wobble,v=>v.toFixed(1));
+  set('cells',state.C.cells);set('margin',state.C.margin,v=>v.toFixed(2));
+  document.getElementById('palette').value=state.D.palette;
+  set('tint',state.D.tint,v=>v.toFixed(2));set('age',state.D.age,v=>v.toFixed(2));
+  set('wear',state.E.wear,v=>v.toFixed(2));set('bleed',state.E.bleed,v=>v.toFixed(2));
+  const cks={ckPlateNo:state.A.plateno,ckAnnot:state.A.annot,ckStamp:state.A.stamp,ckLabel:state.A.label,ckScale:state.A.scale,ckPacket:state.A.packet,ckStrips:state.C.strips,ckRule:state.C.rule};
+  for(const k in cks)document.getElementById(k).classList.toggle('on',cks[k]);
+  ['A','B','C','D','E'].forEach(m=>document.getElementById('mod'+m).classList.toggle('off',!state[m].on));
+}
+
+/* upload wiring */
+const drop=document.getElementById('drop'),fileEl=document.getElementById('file');
+drop.addEventListener('click',()=>fileEl.click());
+fileEl.addEventListener('change',()=>{if(fileEl.files[0])loadFile(fileEl.files[0]);});
+['dragover','dragenter'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.style.borderColor='#5a6b3a';}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.style.borderColor='';}));
+drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)loadFile(f);});
+
+window.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();
+    (e.shiftKey?document.getElementById('btnRedo'):document.getElementById('btnUndo')).click();}
+});
+
+/* ================= BOOT ================= */
+makeDefaultImage();
+syncUI();
+render();
+</script>
+</body>
+</html>

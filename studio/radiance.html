@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>RADIANCE &#183; 2D radiance cascades playground</title>
+<style>
+  :root { --hue: 305; }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: oklch(0.13 0.012 var(--hue));
+    color: oklch(0.85 0.02 var(--hue));
+    font: 13px/1.45 ui-monospace, "Cascadia Mono", Consolas, monospace;
+    height: 100vh; display: flex; overflow: hidden;
+  }
+  #stage { flex: 1; display: flex; align-items: center; justify-content: center; padding: 14px; min-width: 0; }
+  #gl { max-width: 100%; max-height: 100%; aspect-ratio: 16/9; width: 100%;
+        image-rendering: auto; background: #000; cursor: crosshair;
+        outline: 1px solid oklch(0.28 0.02 var(--hue)); }
+  #panel {
+    width: 292px; flex: none; overflow-y: auto; padding: 14px 16px 40px;
+    background: oklch(0.16 0.014 var(--hue));
+    border-left: 1px solid oklch(0.24 0.02 var(--hue));
+  }
+  h1 { font-size: 14px; letter-spacing: 0.18em; font-weight: 700; color: oklch(0.92 0.03 var(--hue)); }
+  h1 small { display:block; font-weight: 400; letter-spacing: 0; font-size: 11px; color: oklch(0.6 0.02 var(--hue)); margin-top: 2px; }
+  .grp { margin-top: 16px; padding-top: 10px; border-top: 1px solid oklch(0.24 0.02 var(--hue)); }
+  .grp > b { display:block; font-size: 11px; letter-spacing: 0.14em; color: oklch(0.62 0.05 var(--hue)); margin-bottom: 6px; }
+  .row { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
+  .row label { flex: none; width: 92px; color: oklch(0.72 0.02 var(--hue)); font-size: 12px; }
+  .row input[type=range] { flex: 1; accent-color: oklch(0.7 0.19 var(--hue)); min-width: 0; }
+  .row output { flex: none; width: 40px; text-align: right; font-size: 11px; color: oklch(0.88 0.05 var(--hue)); }
+  .row select, .row input[type=text], .row input[type=number] {
+    flex: 1; background: oklch(0.12 0.01 var(--hue)); color: inherit; min-width: 0;
+    border: 1px solid oklch(0.3 0.02 var(--hue)); padding: 3px 6px; font: inherit; }
+  button {
+    background: oklch(0.22 0.03 var(--hue)); color: oklch(0.9 0.03 var(--hue));
+    border: 1px solid oklch(0.34 0.04 var(--hue)); padding: 4px 10px; font: inherit;
+    font-size: 12px; cursor: pointer; }
+  button:hover { background: oklch(0.28 0.05 var(--hue)); }
+  button.on { background: oklch(0.5 0.15 var(--hue)); color: #fff; border-color: transparent; }
+  .btns { display: flex; gap: 6px; flex-wrap: wrap; margin: 5px 0; }
+  #fps { color: oklch(0.65 0.1 145); }
+  #err { color: oklch(0.7 0.18 30); white-space: pre-wrap; margin-top: 10px; display: none; }
+  .hint { font-size: 11px; color: oklch(0.55 0.015 var(--hue)); margin-top: 4px; }
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="gl"></canvas></div>
+<div id="panel">
+  <h1>RADIANCE<small>2d radiance cascades playground &#183; <span id="fps">-- fps</span></small></h1>
+  <div id="err"></div>
+
+  <div class="grp"><b>CASCADES</b>
+    <div class="row"><label>base interval</label><input type="range" id="d0" min="1" max="16" step="0.5"><output></output></div>
+    <div class="row"><label>cascades</label><input type="range" id="cascades" min="2" max="7" step="1"><output></output></div>
+    <div class="row"><label>emitter gain</label><input type="range" id="gain" min="0.2" max="4" step="0.05"><output></output></div>
+    <div class="row"><label>bounce</label><input type="range" id="bounce" min="0" max="1" step="0.02"><output></output></div>
+    <div class="row"><label>exposure</label><input type="range" id="exposure" min="0.1" max="4" step="0.05"><output></output></div>
+    <div class="row"><label>ambient</label><input type="range" id="ambient" min="0" max="0.4" step="0.005"><output></output></div>
+    <div class="row"><label>GI resolution</label>
+      <select id="res">
+        <option value="480x270">480 &#215; 270</option>
+        <option value="640x360" selected>640 &#215; 360</option>
+        <option value="960x540">960 &#215; 540</option>
+      </select></div>
+    <div class="row"><label>view</label>
+      <select id="view">
+        <option value="0" selected>composite</option>
+        <option value="1">irradiance only</option>
+        <option value="2">distance field</option>
+        <option value="3">albedo buffer</option>
+        <option value="4">cascade 0 raw</option>
+      </select></div>
+    <div class="hint">surfaces render at 2&#215; the GI resolution; light is computed low-res and interpolated.</div>
+  </div>
+
+  <div class="grp"><b>LIVING BLOBS</b>
+    <div class="row"><label>blobs</label><input type="range" id="strokes" min="0" max="16" step="1"><output></output></div>
+    <div class="row"><label>drift speed</label><input type="range" id="drift" min="0" max="10" step="0.1"><output></output></div>
+    <div class="row"><label>frost</label><input type="range" id="frost" min="0" max="1" step="0.02"><output></output></div>
+    <div class="row"><label>seed</label><input type="number" id="seed" min="1" max="99999" step="1">
+      <button id="reseed">reseed</button></div>
+    <div class="hint">blobs live 45&#8211;95s, shrink away, and are reborn elsewhere in a new color. frost dissolves their outlines into their own glow &#8212; a side experiment, very optional, not core to the technique.</div>
+  </div>
+
+  <div class="grp"><b>TYPE</b>
+    <div class="row"><label>text</label><input type="text" id="text" maxlength="24"></div>
+    <div class="row"><label>mode</label>
+      <select id="textMode">
+        <option value="off">off</option>
+        <option value="occluder" selected>occluder</option>
+        <option value="emitter">emitter</option>
+      </select></div>
+    <div class="row"><label>style</label>
+      <select id="textStyle">
+        <option value="filled" selected>filled</option>
+        <option value="outline">outline</option>
+      </select></div>
+    <div class="row"><label>color</label><input type="color" id="textColor"></div>
+    <div class="row"><label>ink</label><input type="range" id="ink" min="0" max="1" step="0.02"><output></output></div>
+    <div class="hint">text always occludes and blushes in the sim; ink overlays the chosen color solidly on top (1 = pure graphic ink, 0 = fully scene-lit).</div>
+  </div>
+
+  <div class="grp"><b>BRUSH</b>
+    <div class="btns">
+      <button id="bEmit" class="on">emitter</button>
+      <button id="bOccl">occluder</button>
+      <button id="bErase">erase</button>
+    </div>
+    <div class="row"><label>size</label><input type="range" id="bSize" min="2" max="60" step="1"><output></output></div>
+    <div class="row"><label>hue</label><input type="range" id="bHue" min="0" max="360" step="1"><output></output></div>
+    <div class="btns"><button id="clearPaint">clear painted</button></div>
+    <div class="hint">draw on the canvas. emitters glow, occluders are white surfaces that catch light.</div>
+  </div>
+
+  <div class="grp"><b>PARAMS</b>
+    <div class="btns">
+      <button id="reset">reset defaults</button>
+      <button id="save">export json</button>
+      <button id="load">import json</button>
+      <input type="file" id="file" accept=".json" style="display:none">
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+// ---------------------------------------------------------------- state
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+
+const PARAMS = {
+  d0: 3, cascades: 6, gain: 0.65, bounce: 0.55, exposure: 0.55, ambient: 0.0,
+  res: "640x360", view: 0,
+  strokes: 6, drift: 1.5, seed: 61, frost: 0.9,
+  text: "RADIANCE", textMode: "occluder", textStyle: "filled", textColor: "#ffffff", ink: 0.85,
+  bSize: 14, bHue: 145, brush: "emitter",
+};
+const DEFAULTS = Object.freeze({ ...PARAMS });
+
+// merge-restore: only known keys, type-checked against defaults
+function restoreParams(obj){
+  for (const k of Object.keys(PARAMS)) {
+    if (k in obj && typeof obj[k] === typeof PARAMS[k]) PARAMS[k] = obj[k];
+  }
+}
+
+// ---------------------------------------------------------------- gl setup
+const canvas = document.getElementById("gl");
+const gl = canvas.getContext("webgl2", { antialias: false, alpha: false });
+const errBox = document.getElementById("err");
+function fail(msg){ errBox.style.display = "block"; errBox.textContent = msg; throw new Error(msg); }
+if (!gl) fail("WebGL2 unavailable.");
+if (!gl.getExtension("EXT_color_buffer_float")) fail("EXT_color_buffer_float unavailable - float render targets required.");
+
+const VERT = `#version 300 es
+void main(){
+  vec2 p = vec2((gl_VertexID<<1)&2, gl_VertexID&2);
+  gl_Position = vec4(p*2.0-1.0, 0.0, 1.0);
+}`;
+
+function compile(type, src){
+  const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) fail("shader: " + gl.getShaderInfoLog(s));
+  return s;
+}
+function program(fragSrc){
+  const p = gl.createProgram();
+  gl.attachShader(p, compile(gl.VERTEX_SHADER, VERT));
+  gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fragSrc));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) fail("link: " + gl.getProgramInfoLog(p));
+  const u = {}; const n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+  for (let i = 0; i < n; i++){ const info = gl.getActiveUniform(p, i); u[info.name] = gl.getUniformLocation(p, info.name); }
+  return { p, u };
+}
+
+// -------- shaders
+// GI passes read the hi-res surface textures at mip level 1 (exactly GI res, SS=2).
+
+const FRAG_SEED = `#version 300 es
+precision highp float;
+uniform sampler2D uAlbedo;
+out vec4 frag;
+void main(){
+  ivec2 t = ivec2(gl_FragCoord.xy);
+  vec4 s = texelFetch(uAlbedo, t, 1);
+  frag = s.a > 0.35 ? vec4(vec2(t)+0.5, 1.0, 0.0) : vec4(0.0);
+}`;
+
+const FRAG_JFA = `#version 300 es
+precision highp float;
+uniform sampler2D uPrev;
+uniform int uJump;
+uniform vec2 uRes;
+out vec4 frag;
+void main(){
+  ivec2 t = ivec2(gl_FragCoord.xy);
+  vec2 me = vec2(t)+0.5;
+  float best = 1e12; vec4 bestS = vec4(0.0);
+  for (int y=-1; y<=1; y++) for (int x=-1; x<=1; x++){
+    ivec2 q = t + ivec2(x,y)*uJump;
+    if (q.x<0||q.y<0||q.x>=int(uRes.x)||q.y>=int(uRes.y)) continue;
+    vec4 s = texelFetch(uPrev, q, 0);
+    if (s.b < 0.5) continue;
+    vec2 d = s.xy - me; float d2 = dot(d,d);
+    if (d2 < best){ best = d2; bestS = s; }
+  }
+  frag = bestS;
+}`;
+
+const FRAG_DIST = `#version 300 es
+precision highp float;
+uniform sampler2D uJfa;
+out vec4 frag;
+void main(){
+  ivec2 t = ivec2(gl_FragCoord.xy);
+  vec4 s = texelFetch(uJfa, t, 0);
+  float d = s.b > 0.5 ? distance(s.xy, vec2(t)+0.5) : 1e6;
+  frag = vec4(d, 0.0, 0.0, 1.0);
+}`;
+
+// what a ray receives on hit: emission + albedo * last frame's irradiance (multi-bounce feedback)
+const FRAG_RAD = `#version 300 es
+precision highp float;
+uniform sampler2D uAlbedo;
+uniform sampler2D uEmission;
+uniform sampler2D uPrevIrr;
+uniform float uGain;
+uniform float uBounce;
+out vec4 frag;
+void main(){
+  ivec2 t = ivec2(gl_FragCoord.xy);
+  vec4 a = texelFetch(uAlbedo, t, 1);
+  if (a.a <= 0.35){ frag = vec4(0.0); return; }
+  vec3 e = texelFetch(uEmission, t, 1).rgb;
+  vec3 irr = texelFetch(uPrevIrr, t, 0).rgb;
+  frag = vec4(e*uGain + a.rgb*irr*uBounce, 1.0);
+}`;
+
+const FRAG_CASCADE = `#version 300 es
+precision highp float;
+uniform sampler2D uRad;
+uniform sampler2D uDist;
+uniform sampler2D uUpper;
+uniform vec2 uRes;        // GI res (probe space)
+uniform int uCascade;
+uniform int uCount;
+uniform float uD0;
+uniform vec3 uAmbient;
+out vec4 frag;
+void main(){
+  ivec2 texel = ivec2(gl_FragCoord.xy);
+  int tilesAxis = 1 << (uCascade+1);
+  ivec2 probeCount = ivec2(uRes) >> uCascade;
+  ivec2 tile = texel / probeCount;
+  ivec2 probe = texel % probeCount;
+  if (tile.x >= tilesAxis || tile.y >= tilesAxis){ frag = vec4(0.0); return; }
+  int dirCount = tilesAxis*tilesAxis;
+  int d = tile.y*tilesAxis + tile.x;
+  float spacing = float(1 << uCascade);
+  vec2 origin = (vec2(probe)+0.5)*spacing;
+  float ang = 6.28318530718*(float(d)+0.5)/float(dirCount);
+  vec2 dir = vec2(cos(ang), sin(ang));
+  float p4 = pow(4.0, float(uCascade));
+  float t0 = uD0*(p4-1.0)/3.0;
+  float t1 = uD0*(p4*4.0-1.0)/3.0;
+  // sphere-trace the interval
+  float t = t0; bool hit = false; vec3 rad = vec3(0.0);
+  for (int s=0; s<64; s++){
+    vec2 p = origin + dir*t;
+    if (t > t1 || p.x<0.0 || p.y<0.0 || p.x>=uRes.x || p.y>=uRes.y) break;
+    float dd = texelFetch(uDist, ivec2(p), 0).r;
+    if (dd < 0.5){
+      rad = texelFetch(uRad, ivec2(p), 0).rgb;
+      hit = true; break;
+    }
+    t += max(dd, 0.5);
+  }
+  if (hit){ frag = vec4(rad, 0.0); return; }
+  // miss: merge from upper cascade (or sky at the top)
+  vec3 upper = vec3(0.0);
+  if (uCascade == uCount-1){
+    upper = uAmbient;
+  } else {
+    int upTilesAxis = tilesAxis*2;
+    ivec2 upProbeCount = ivec2(uRes) >> (uCascade+1);
+    float upSpacing = spacing*2.0;
+    vec2 pu = origin/upSpacing - 0.5;
+    vec2 baseF = floor(pu);
+    vec2 f = pu - baseF;
+    for (int k=0; k<4; k++){
+      int du = d*4+k;
+      ivec2 utile = ivec2(du % upTilesAxis, du / upTilesAxis);
+      ivec2 torg = utile * upProbeCount;
+      vec3 acc = vec3(0.0);
+      for (int b=0; b<4; b++){
+        ivec2 off = ivec2(b&1, b>>1);
+        ivec2 pc = clamp(ivec2(baseF)+off, ivec2(0), upProbeCount-1);
+        float w = ((b&1)==0 ? 1.0-f.x : f.x) * ((b>>1)==0 ? 1.0-f.y : f.y);
+        acc += w * texelFetch(uUpper, torg+pc, 0).rgb;
+      }
+      upper += acc*0.25;
+    }
+  }
+  frag = vec4(upper, 1.0);
+}`;
+
+// average cascade 0's four directions into a per-probe irradiance map (also next frame's bounce source)
+const FRAG_RESOLVE = `#version 300 es
+precision highp float;
+uniform sampler2D uC0;
+uniform vec2 uRes;
+out vec4 frag;
+void main(){
+  ivec2 probe = ivec2(gl_FragCoord.xy);
+  ivec2 R = ivec2(uRes);
+  vec3 irr = vec3(0.0);
+  for (int d=0; d<4; d++) irr += texelFetch(uC0, ivec2(d&1, d>>1)*R + probe, 0).rgb;
+  frag = vec4(irr*0.25, 1.0);
+}`;
+
+const FRAG_COMPOSITE = `#version 300 es
+precision highp float;
+uniform sampler2D uAlbedo;    // hi-res
+uniform sampler2D uEmission;  // hi-res
+uniform sampler2D uIrr;       // GI res, LINEAR
+uniform sampler2D uDist;
+uniform sampler2D uC0;
+uniform sampler2D uText;      // hi-res, display-only ink layer
+uniform vec2 uRes;            // GI res
+uniform float uSS;
+uniform float uGain;
+uniform float uBounce;
+uniform float uExposure;
+uniform float uFrost;
+uniform float uInk;
+uniform int uView;
+out vec4 frag;
+vec3 aces(vec3 x){
+  return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14), 0.0, 1.0);
+}
+void main(){
+  ivec2 pix = ivec2(gl_FragCoord.xy);
+  vec2 probeUv = gl_FragCoord.xy/(uRes*uSS);
+  vec3 irr = texture(uIrr, probeUv).rgb;
+  if (uView == 1){ frag = vec4(pow(aces(irr*uExposure), vec3(1.0/2.2)), 1.0); return; }
+  if (uView == 2){ float dd = texelFetch(uDist, ivec2(gl_FragCoord.xy/uSS), 0).r/64.0; frag = vec4(vec3(fract(dd)), 1.0); return; }
+  if (uView == 3){ frag = vec4(texelFetch(uAlbedo, pix, 0).rgb, 1.0); return; }
+  if (uView == 4){ frag = vec4(texelFetch(uC0, ivec2(gl_FragCoord.xy*2.0/uSS), 0).rgb, 1.0); return; }
+  vec4 a = texelFetch(uAlbedo, pix, 0);
+  vec3 e = texelFetch(uEmission, pix, 0).rgb;
+  vec3 col;
+  if (a.a > 0.5){
+    vec3 lit = e*uGain + a.rgb*irr*uBounce;   // surfaces: same light a ray would see, but crisp
+    // frost: dissolve emitter surfaces into a wide-blurred light field so rims go vague
+    float em = step(0.02, max(max(e.r, e.g), e.b));
+    if (uFrost*em > 0.0){
+      vec3 firr = vec3(0.0);
+      vec2 stp = (uFrost*40.0)/uRes;
+      // per-pixel kernel rotation breaks the box-blur grid into smooth noise
+      float ja = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898,78.233)))*43758.5453)*6.2831853;
+      mat2 rot = mat2(cos(ja), sin(ja), -sin(ja), cos(ja));
+      for (int oy=-2; oy<=2; oy++) for (int ox=-2; ox<=2; ox++)
+        firr += texture(uIrr, probeUv + rot*vec2(ox, oy)*stp*0.5).rgb;
+      firr /= 25.0;
+      col = mix(lit, firr, uFrost);
+    } else col = lit;
+  } else col = irr;                            // air: the radiance field
+  col = aces(col*uExposure);
+  col = pow(col, vec3(1.0/2.2));
+  // graphic ink: display-only text overlay, independent of the light sim
+  vec4 tx = texelFetch(uText, pix, 0);
+  col = mix(col, tx.rgb, tx.a*uInk);
+  // subtle dither to kill banding in the glow
+  float n = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898,78.233)))*43758.5453);
+  col += (n-0.5)/255.0;
+  frag = vec4(col, 1.0);
+}`;
+
+const progSeed = program(FRAG_SEED);
+const progJfa = program(FRAG_JFA);
+const progDist = program(FRAG_DIST);
+const progRad = program(FRAG_RAD);
+const progCascade = program(FRAG_CASCADE);
+const progResolve = program(FRAG_RESOLVE);
+const progComposite = program(FRAG_COMPOSITE);
+
+// ---------------------------------------------------------------- targets
+const SS = 2;                 // surface supersample over GI res; mip level 1 == GI res
+let W = 640, H = 360;         // GI res
+let DW = W*SS, DH = H*SS;     // surface/display res
+let albedoTex, emissionTex, textTex, jfaTexA, jfaTexB, distTex, radTex, cascTexA, cascTexB, irrTexA, irrTexB;
+let fbo;
+const albedoCanvas = document.createElement("canvas");
+const actx = albedoCanvas.getContext("2d");
+const emissionCanvas = document.createElement("canvas");
+const ectx = emissionCanvas.getContext("2d");
+const textCanvas = document.createElement("canvas");
+const tctx = textCanvas.getContext("2d");
+const paintAlbedo = document.createElement("canvas");
+const pactx = paintAlbedo.getContext("2d");
+const paintEmission = document.createElement("canvas");
+const pectx = paintEmission.getContext("2d");
+
+function makeTex(w, h, internal, format, type, opts){
+  opts = opts || {};
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  const filt = opts.linear ? gl.LINEAR : gl.NEAREST;
+  // mip textures need a mipmap-complete min filter or texelFetch at lod 1 reads zeros
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, opts.mip ? gl.NEAREST_MIPMAP_NEAREST : filt);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filt);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texImage2D(gl.TEXTURE_2D, 0, internal, w, h, 0, format, type, null);
+  return t;
+}
+
+function allocate(){
+  const [w, h] = PARAMS.res.split("x").map(Number);
+  W = w; H = h; DW = W*SS; DH = H*SS;
+  canvas.width = DW; canvas.height = DH;
+  // preserve the paint layers across resolution changes
+  for (const [pc, px] of [[paintAlbedo, pactx], [paintEmission, pectx]]){
+    const old = document.createElement("canvas");
+    old.width = pc.width || DW; old.height = pc.height || DH;
+    if (pc.width) old.getContext("2d").drawImage(pc, 0, 0);
+    pc.width = DW; pc.height = DH;
+    if (old.width > 1) px.drawImage(old, 0, 0, DW, DH);
+  }
+  albedoCanvas.width = DW; albedoCanvas.height = DH;
+  emissionCanvas.width = DW; emissionCanvas.height = DH;
+  textCanvas.width = DW; textCanvas.height = DH;
+  for (const t of [albedoTex, emissionTex, textTex, jfaTexA, jfaTexB, distTex, radTex, cascTexA, cascTexB, irrTexA, irrTexB])
+    if (t) gl.deleteTexture(t);
+  albedoTex   = makeTex(DW, DH, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, {mip:true});
+  emissionTex = makeTex(DW, DH, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, {mip:true});
+  textTex     = makeTex(DW, DH, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE);
+  jfaTexA  = makeTex(W, H, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT);
+  jfaTexB  = makeTex(W, H, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT);
+  distTex  = makeTex(W, H, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT);
+  radTex   = makeTex(W, H, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT);
+  cascTexA = makeTex(W*2, H*2, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT);
+  cascTexB = makeTex(W*2, H*2, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT);
+  irrTexA  = makeTex(W, H, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, {linear:true});
+  irrTexB  = makeTex(W, H, gl.RGBA16F, gl.RGBA, gl.HALF_FLOAT, {linear:true});
+  if (!fbo) fbo = gl.createFramebuffer();
+}
+
+function target(tex, w, h){
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+  gl.viewport(0, 0, w, h);
+}
+function bindTex(unit, tex, loc){
+  gl.activeTexture(gl.TEXTURE0 + unit);
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.uniform1i(loc, unit);
+}
+function draw(){ gl.drawArrays(gl.TRIANGLES, 0, 3); }
+
+function uploadSurface(tex, cnv, mip){
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, gl.RGBA, gl.UNSIGNED_BYTE, cnv);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  if (mip) gl.generateMipmap(gl.TEXTURE_2D);   // level 1 = GI res, read by the GI passes
+}
+
+// ---------------------------------------------------------------- blobs
+// palette: oklch, C 0.28, L 48-66, six in-family hues
+const HUES = [350, 30, 75, 145, 240, 305];
+const BLOB_C = 0.28, BLOB_LMIN = 48, BLOB_LMAX = 66;
+const FADE = 10;            // seconds of fade in/out (drift-time)
+const SEG = 40;
+let blobs = [];
+let rndLive = mulberry32(1);
+let driftT = 0;
+
+function makeBlob(rnd, birth){
+  return {
+    hue: HUES[(rnd()*HUES.length)|0],
+    L: BLOB_LMIN + rnd()*(BLOB_LMAX-BLOB_LMIN),
+    x: 0.08 + rnd()*0.84, y: 0.12 + rnd()*0.76,
+    r: 0.09 + rnd()*0.13,                       // base radius, fraction of height
+    // harmonic lobes: radius wobbles with 2-4 sine lobes that morph over time
+    a2: 0.05+rnd()*0.2, a3: 0.05+rnd()*0.18, a4: 0.03+rnd()*0.12,
+    w2: (0.1+rnd()*0.45)*(rnd()<0.5?-1:1),
+    w3: (0.1+rnd()*0.45)*(rnd()<0.5?-1:1),
+    w4: (0.1+rnd()*0.45)*(rnd()<0.5?-1:1),
+    p2: rnd()*6.283, p3: rnd()*6.283, p4: rnd()*6.283,
+    // centroid drift: wide period spread so some blobs dart, some laze
+    sx: 0.03+rnd()*0.14, sy: 0.03+rnd()*0.14,
+    aX: 0.04+rnd()*0.12, aY: 0.04+rnd()*0.11,
+    ph: rnd()*6.283, ph2: rnd()*6.283,
+    birth, lifespan: 45 + rnd()*50,
+  };
+}
+
+function buildBlobs(){
+  rndLive = mulberry32(PARAMS.seed*7919 + 1);
+  blobs = [];
+  for (let i = 0; i < 16; i++){
+    const b = makeBlob(rndLive, 0);
+    // stagger ages so the field starts populated but not synchronized
+    b.birth = driftT - rndLive()*(b.lifespan - FADE);
+    blobs.push(b);
+  }
+}
+
+function drawBlob(ctx2, b, t){
+  const age = t - b.birth;
+  const f = Math.max(0, Math.min(1, age/FADE, (b.lifespan-age)/FADE));
+  if (f <= 0) return;
+  const cx = (b.x + b.aX*Math.sin(t*b.sx + b.ph))*DW;
+  const cy = (b.y + b.aY*Math.sin(t*b.sy + b.ph2))*DH;
+  // fade by growing/shrinking at full color — a dimmed-but-opaque blob is a
+  // black occluder that soaks up light, which read as "dark spots" on spawn
+  const fs = f*f*(3 - 2*f);
+  const R0 = b.r*DH*fs;
+  ctx2.fillStyle = `oklch(${b.L.toFixed(1)}% ${BLOB_C} ${b.hue})`;
+  ctx2.beginPath();
+  for (let i = 0; i <= SEG; i++){
+    const th = i/SEG*6.28318530718;
+    const r = R0*(1
+      + b.a2*Math.sin(2*th + b.p2 + t*b.w2)
+      + b.a3*Math.sin(3*th + b.p3 + t*b.w3)
+      + b.a4*Math.sin(4*th + b.p4 + t*b.w4));
+    const x = cx + Math.cos(th)*r, y = cy + Math.sin(th)*r;
+    if (i === 0) ctx2.moveTo(x, y); else ctx2.lineTo(x, y);
+  }
+  ctx2.closePath();
+  ctx2.fill();
+}
+
+function drawText(ctx2){
+  const txt = PARAMS.text.toUpperCase();
+  ctx2.font = `900 ${Math.round(DH*0.24)}px system-ui, sans-serif`;
+  ctx2.textAlign = "center"; ctx2.textBaseline = "middle";
+  if (PARAMS.textStyle === "outline"){
+    ctx2.lineWidth = Math.max(2, DH*0.012);
+    ctx2.strokeStyle = PARAMS.textColor;
+    ctx2.strokeText(txt, DW/2, DH/2);
+  } else {
+    ctx2.fillStyle = PARAMS.textColor;
+    ctx2.fillText(txt, DW/2, DH/2);
+  }
+}
+
+function composeScene(){
+  const t = driftT;
+  const hasText = PARAMS.textMode !== "off" && PARAMS.text.trim();
+  // emission canvas: everything that radiates by itself
+  ectx.clearRect(0, 0, DW, DH);
+  for (let i = 0; i < PARAMS.strokes; i++){
+    let b = blobs[i];
+    if (t - b.birth > b.lifespan) b = blobs[i] = makeBlob(rndLive, t);
+    drawBlob(ectx, b, t);
+  }
+  if (hasText && PARAMS.textMode === "emitter") drawText(ectx);
+  ectx.drawImage(paintEmission, 0, 0);
+  if (hasText && PARAMS.textMode === "occluder"){
+    // punch the letters out of the emission layer — otherwise blob emission
+    // hiding under the text makes the letters display glow on top of the ink
+    ectx.globalCompositeOperation = "destination-out";
+    drawText(ectx);
+    ectx.globalCompositeOperation = "source-over";
+  }
+  // albedo canvas: every solid surface, in its display color
+  actx.clearRect(0, 0, DW, DH);
+  actx.drawImage(emissionCanvas, 0, 0);
+  if (hasText && PARAMS.textMode === "occluder") drawText(actx);
+  actx.drawImage(paintAlbedo, 0, 0);
+  // ink layer: display-only text overlay, outside the light sim
+  tctx.clearRect(0, 0, DW, DH);
+  if (hasText) drawText(tctx);
+}
+
+// ---------------------------------------------------------------- frame
+function cascadeCountAuto(){
+  const diag = Math.hypot(W, H);
+  return Math.max(2, Math.min(7, Math.ceil(Math.log(3*diag/PARAMS.d0 + 1)/Math.log(4))));
+}
+
+let lastT = 0, fpsEma = 0;
+function frame(now){
+  if (lastT){
+    const dt = (now-lastT)/1000;
+    driftT += Math.min(dt, 0.1)*PARAMS.drift;
+    const fps = 1/Math.max(dt, 1e-4);
+    fpsEma = fpsEma ? fpsEma*0.95 + fps*0.05 : fps;
+  }
+  lastT = now;
+  document.getElementById("fps").textContent = fpsEma.toFixed(0) + " fps";
+
+  composeScene();
+  uploadSurface(albedoTex, albedoCanvas, true);
+  uploadSurface(emissionTex, emissionCanvas, true);
+  uploadSurface(textTex, textCanvas, false);
+
+  // radiance-on-hit: emission + bounced light from last frame's irradiance
+  gl.useProgram(progRad.p);
+  target(radTex, W, H);
+  bindTex(0, albedoTex, progRad.u.uAlbedo);
+  bindTex(1, emissionTex, progRad.u.uEmission);
+  bindTex(2, irrTexB, progRad.u.uPrevIrr);
+  gl.uniform1f(progRad.u.uGain, PARAMS.gain);
+  gl.uniform1f(progRad.u.uBounce, PARAMS.bounce);
+  draw();
+
+  // JFA seed
+  gl.useProgram(progSeed.p);
+  target(jfaTexA, W, H);
+  bindTex(0, albedoTex, progSeed.u.uAlbedo);
+  draw();
+  // JFA passes
+  gl.useProgram(progJfa.p);
+  gl.uniform2f(progJfa.u.uRes, W, H);
+  let src = jfaTexA, dst = jfaTexB;
+  for (let jump = 1 << Math.ceil(Math.log2(Math.max(W, H))); jump >= 1; jump >>= 1){
+    target(dst, W, H);
+    bindTex(0, src, progJfa.u.uPrev);
+    gl.uniform1i(progJfa.u.uJump, jump);
+    draw();
+    [src, dst] = [dst, src];
+  }
+  // distance
+  gl.useProgram(progDist.p);
+  target(distTex, W, H);
+  bindTex(0, src, progDist.u.uJfa);
+  draw();
+
+  // cascades, top down
+  const count = PARAMS.cascades;
+  gl.useProgram(progCascade.p);
+  gl.uniform2f(progCascade.u.uRes, W, H);
+  gl.uniform1i(progCascade.u.uCount, count);
+  gl.uniform1f(progCascade.u.uD0, PARAMS.d0);
+  gl.uniform3f(progCascade.u.uAmbient, PARAMS.ambient, PARAMS.ambient, PARAMS.ambient*1.15);
+  let cSrc = cascTexA, cDst = cascTexB;
+  for (let i = count-1; i >= 0; i--){
+    target(cDst, W*2, H*2);
+    bindTex(0, radTex, progCascade.u.uRad);
+    bindTex(1, distTex, progCascade.u.uDist);
+    bindTex(2, cSrc, progCascade.u.uUpper);
+    gl.uniform1i(progCascade.u.uCascade, i);
+    draw();
+    [cSrc, cDst] = [cDst, cSrc];
+  }
+  // cSrc now holds cascade 0
+
+  // resolve irradiance (this frame's light, next frame's bounce source)
+  gl.useProgram(progResolve.p);
+  target(irrTexA, W, H);
+  bindTex(0, cSrc, progResolve.u.uC0);
+  gl.uniform2f(progResolve.u.uRes, W, H);
+  draw();
+  [irrTexA, irrTexB] = [irrTexB, irrTexA];   // irrTexB = latest
+
+  // composite to screen at surface res
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0, 0, DW, DH);
+  gl.useProgram(progComposite.p);
+  bindTex(0, albedoTex, progComposite.u.uAlbedo);
+  bindTex(1, emissionTex, progComposite.u.uEmission);
+  bindTex(2, irrTexB, progComposite.u.uIrr);
+  bindTex(3, distTex, progComposite.u.uDist);
+  bindTex(4, cSrc, progComposite.u.uC0);
+  bindTex(5, textTex, progComposite.u.uText);
+  gl.uniform2f(progComposite.u.uRes, W, H);
+  gl.uniform1f(progComposite.u.uSS, SS);
+  gl.uniform1f(progComposite.u.uGain, PARAMS.gain);
+  gl.uniform1f(progComposite.u.uBounce, PARAMS.bounce);
+  gl.uniform1f(progComposite.u.uExposure, PARAMS.exposure);
+  gl.uniform1f(progComposite.u.uFrost, PARAMS.frost);
+  gl.uniform1f(progComposite.u.uInk, PARAMS.ink);
+  gl.uniform1i(progComposite.u.uView, PARAMS.view);
+  draw();
+
+  requestAnimationFrame(frame);
+}
+
+// ---------------------------------------------------------------- painting
+let painting = false;
+function canvasPos(e){
+  const r = canvas.getBoundingClientRect();
+  return [ (e.clientX - r.left)/r.width * DW, (e.clientY - r.top)/r.height * DH ];
+}
+let lastP = null;
+function paintStroke(ctx2, style, x, y){
+  ctx2.lineCap = "round";
+  ctx2.lineWidth = PARAMS.bSize*SS;
+  if (style === null){
+    ctx2.globalCompositeOperation = "destination-out";
+    ctx2.strokeStyle = "#000";
+  } else {
+    ctx2.globalCompositeOperation = "source-over";
+    ctx2.strokeStyle = style;
+  }
+  ctx2.beginPath();
+  ctx2.moveTo(lastP ? lastP[0] : x, lastP ? lastP[1] : y);
+  ctx2.lineTo(x, y);
+  ctx2.stroke();
+  ctx2.globalCompositeOperation = "source-over";
+}
+function paintAt(x, y){
+  if (PARAMS.brush === "erase"){
+    paintStroke(pactx, null, x, y);
+    paintStroke(pectx, null, x, y);
+  } else if (PARAMS.brush === "emitter"){
+    const c = `hsl(${PARAMS.bHue} 90% 60%)`;
+    paintStroke(pactx, c, x, y);
+    paintStroke(pectx, c, x, y);
+  } else {
+    paintStroke(pactx, "#ffffff", x, y);   // occluder: white surface, no emission
+  }
+  lastP = [x, y];
+}
+canvas.addEventListener("pointerdown", e => { painting = true; lastP = null; paintAt(...canvasPos(e)); canvas.setPointerCapture(e.pointerId); });
+canvas.addEventListener("pointermove", e => { if (painting) paintAt(...canvasPos(e)); });
+canvas.addEventListener("pointerup", () => { painting = false; lastP = null; });
+
+// ---------------------------------------------------------------- ui wiring
+const $ = id => document.getElementById(id);
+function bindRange(id, key){
+  const el = $(id), out = el.nextElementSibling;
+  el.value = PARAMS[key];
+  const show = () => { if (out) out.textContent = PARAMS[key]; };
+  el.addEventListener("input", () => { PARAMS[key] = Number(el.value); show(); });
+  show();
+}
+bindRange("d0", "d0");
+bindRange("cascades", "cascades");
+bindRange("gain", "gain");
+bindRange("bounce", "bounce");
+bindRange("exposure", "exposure");
+bindRange("ambient", "ambient");
+bindRange("strokes", "strokes");
+bindRange("drift", "drift");
+bindRange("frost", "frost");
+bindRange("ink", "ink");
+bindRange("bSize", "bSize");
+bindRange("bHue", "bHue");
+
+$("res").value = PARAMS.res;
+$("res").addEventListener("change", () => { PARAMS.res = $("res").value; allocate(); PARAMS.cascades = cascadeCountAuto(); syncUi(); });
+$("view").value = String(PARAMS.view);
+$("view").addEventListener("change", () => PARAMS.view = Number($("view").value));
+$("seed").value = PARAMS.seed;
+$("seed").addEventListener("change", () => { PARAMS.seed = Number($("seed").value)||1; buildBlobs(); });
+$("reseed").addEventListener("click", () => { PARAMS.seed = 1 + Math.floor(Math.random()*99998); $("seed").value = PARAMS.seed; buildBlobs(); });
+$("text").value = PARAMS.text;
+$("text").addEventListener("input", () => PARAMS.text = $("text").value);
+$("textMode").value = PARAMS.textMode;
+$("textMode").addEventListener("change", () => PARAMS.textMode = $("textMode").value);
+$("textStyle").value = PARAMS.textStyle;
+$("textStyle").addEventListener("change", () => PARAMS.textStyle = $("textStyle").value);
+$("textColor").value = PARAMS.textColor;
+$("textColor").addEventListener("input", () => PARAMS.textColor = $("textColor").value);
+
+const brushBtns = { emitter: $("bEmit"), occluder: $("bOccl"), erase: $("bErase") };
+for (const [mode, btn] of Object.entries(brushBtns)){
+  btn.addEventListener("click", () => {
+    PARAMS.brush = mode;
+    for (const b of Object.values(brushBtns)) b.classList.remove("on");
+    btn.classList.add("on");
+  });
+}
+$("clearPaint").addEventListener("click", () => { pactx.clearRect(0, 0, DW, DH); pectx.clearRect(0, 0, DW, DH); });
+
+function syncUi(){
+  for (const [id, key] of [["d0","d0"],["cascades","cascades"],["gain","gain"],["bounce","bounce"],
+      ["exposure","exposure"],["ambient","ambient"],["strokes","strokes"],["drift","drift"],
+      ["frost","frost"],["ink","ink"],["bSize","bSize"],["bHue","bHue"]]){
+    const el = $(id); el.value = PARAMS[key];
+    if (el.nextElementSibling) el.nextElementSibling.textContent = PARAMS[key];
+  }
+  $("res").value = PARAMS.res; $("view").value = String(PARAMS.view);
+  $("seed").value = PARAMS.seed; $("text").value = PARAMS.text; $("textMode").value = PARAMS.textMode;
+  $("textStyle").value = PARAMS.textStyle; $("textColor").value = PARAMS.textColor;
+  for (const b of Object.values(brushBtns)) b.classList.remove("on");
+  (brushBtns[PARAMS.brush] || brushBtns.emitter).classList.add("on");
+}
+
+$("reset").addEventListener("click", () => {
+  const needRealloc = PARAMS.res !== DEFAULTS.res;
+  restoreParams(DEFAULTS);
+  if (needRealloc) allocate();
+  PARAMS.cascades = cascadeCountAuto();
+  buildBlobs();
+  syncUi();
+});
+$("save").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify(PARAMS, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "radiance-playground-params.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+$("load").addEventListener("click", () => $("file").click());
+$("file").addEventListener("change", () => {
+  const f = $("file").files[0]; if (!f) return;
+  f.text().then(txt => {
+    try { restoreParams(JSON.parse(txt)); } catch(e){ alert("bad json"); return; }
+    allocate(); buildBlobs(); syncUi();
+  });
+  $("file").value = "";
+});
+
+// ---------------------------------------------------------------- go
+allocate();
+PARAMS.cascades = cascadeCountAuto();
+buildBlobs();
+syncUi();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

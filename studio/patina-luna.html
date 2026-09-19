@@ -1,0 +1,1589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PATINA &#183; degraded ambient loop foundry</title>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#141310; --panel:#1c1a15; --panel2:#242118; --line:#3a3423;
+  --ink:#efe9da; --dim:#a89c7f; --faint:#6d6450;
+  --amber:#e8b34a; --glass:#7fd8c3; --rust:#d07a4f;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:'IBM Plex Mono', monospace; font-size:13px;
+  min-height:100vh; padding:28px 20px 60px;
+  background-image:radial-gradient(ellipse 80% 50% at 50% -10%, #2b251533, transparent);
+}
+.wrap{max-width:920px; margin:0 auto;}
+header{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; margin-bottom:18px;}
+h1{font-family:'Chakra Petch',sans-serif; font-weight:700; font-size:30px; letter-spacing:.06em;}
+h1 .tail{color:var(--amber);}
+.sub{color:var(--dim); font-size:12px; letter-spacing:.04em;}
+
+.panel{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:16px;}
+.panel.sticky{
+  position:sticky; top:0; z-index:10;
+  background:#1c1a15f2; backdrop-filter:blur(4px);
+  box-shadow:0 6px 18px #00000066;
+}
+
+.transport{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+button{
+  font-family:'Chakra Petch',sans-serif; font-weight:600; font-size:13px; letter-spacing:.05em;
+  padding:9px 15px; border-radius:8px; border:1px solid var(--line);
+  background:var(--panel2); color:var(--ink); cursor:pointer;
+}
+button:hover:not(:disabled){border-color:var(--amber);}
+button:disabled{opacity:.4; cursor:default;}
+button.pri{background:#33290f; border-color:var(--amber); color:var(--amber);}
+button.on{background:#123028; border-color:var(--glass); color:var(--glass);}
+button.wild{background:#361d10; border-color:var(--rust); color:var(--rust);}
+button.wild:hover:not(:disabled){border-color:var(--ink); color:var(--ink);}
+.seedbox{display:flex; align-items:center; gap:6px; margin-left:auto;}
+.seedbox label{color:var(--faint); font-size:10px; letter-spacing:.1em;}
+.seedbox input[type=range]{height:20px; vertical-align:middle;}
+input[type=number], select{
+  font-family:'IBM Plex Mono',monospace; font-size:13px; color:var(--ink);
+  background:var(--panel2); border:1px solid var(--line); border-radius:6px; padding:7px 8px; width:92px;
+}
+select{width:auto;}
+.tstat{width:100%; color:var(--faint); font-size:10px; letter-spacing:.06em; margin-top:6px;}
+.tstat b{color:var(--dim); font-weight:500;}
+
+.endless{
+  display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+  margin-top:12px; padding-top:12px; border-top:1px solid var(--line);
+}
+.endless-btn{background:var(--panel2); border-color:var(--line); color:var(--dim); letter-spacing:.1em;}
+.endless-btn.on{
+  background:#1a2e2a; border-color:var(--glass); color:var(--glass);
+  box-shadow:0 0 14px #7fd8c322;
+}
+.endless-btn.on::before{content:''; }
+.ectl{display:flex; flex-direction:column; gap:3px; min-width:150px; flex:1; max-width:220px;}
+.ectl label{display:flex; justify-content:space-between; color:var(--faint); font-size:10px; letter-spacing:.1em;}
+.ectl label .eval{color:var(--glass); font-weight:500;}
+.ectl input[type=range]{height:18px;}
+.ectl input[type=range]::-webkit-slider-thumb{background:var(--glass); border-color:#0e1a17;}
+.ectl input[type=range]::-moz-range-thumb{background:var(--glass); border-color:#0e1a17;}
+.estat{color:var(--faint); font-size:10px; letter-spacing:.05em; margin-left:auto; text-align:right; min-width:120px;}
+.estat b{color:var(--glass); font-weight:500;}
+
+.presets{display:flex; gap:8px; flex-wrap:wrap;}
+.presets button{flex:1; min-width:110px; letter-spacing:.1em;}
+.presets button.active{background:var(--amber); border-color:var(--amber); color:#221806; font-weight:700;}
+.presetnote{color:var(--faint); font-size:10px; margin-top:8px; letter-spacing:.03em; line-height:1.5;}
+
+canvas{display:block; width:100%; height:150px; border-radius:8px; background:#100e0b;}
+.legend{display:flex; gap:18px; margin-top:8px; font-size:11px; color:var(--dim);}
+.dot{display:inline-block; width:8px; height:8px; border-radius:2px; margin-right:6px; vertical-align:-1px;}
+
+.sec-title{color:var(--faint); font-size:10px; letter-spacing:.18em; margin:4px 0 12px;}
+.sec-title .tag{color:var(--glass); letter-spacing:.08em;}
+.sec-title .tag.rb{color:var(--rust);}
+.grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:13px 26px; margin-bottom:18px;}
+.grid:last-child{margin-bottom:2px;}
+.ctl label{display:flex; justify-content:space-between; color:var(--dim); font-size:11px; letter-spacing:.08em; margin-bottom:5px;}
+.ctl label .val{color:var(--ink); font-weight:500;}
+.ctl .hint{color:var(--faint); font-size:10px; margin-top:3px; line-height:1.4;}
+input[type=range]{-webkit-appearance:none; width:100%; height:22px; background:transparent; cursor:pointer;}
+input[type=range]::-webkit-slider-runnable-track{height:4px; background:var(--line); border-radius:2px;}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none; width:14px; height:14px; border-radius:50%;
+  background:var(--amber); margin-top:-5px; border:2px solid #221806;
+}
+input[type=range]::-moz-range-track{height:4px; background:var(--line); border-radius:2px;}
+input[type=range]::-moz-range-thumb{width:12px; height:12px; border-radius:50%; background:var(--amber); border:2px solid #221806;}
+
+textarea{
+  width:100%; height:110px; margin-top:10px; resize:vertical;
+  font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--dim);
+  background:#100e0b; border:1px solid var(--line); border-radius:8px; padding:10px;
+  display:none;
+}
+textarea.show{display:block;}
+.foot{color:var(--faint); font-size:10px; letter-spacing:.05em; line-height:1.6; margin-top:4px;}
+
+/* ============ HERO FACE ============ */
+.hero{
+  max-width:520px; margin:0 auto; padding:8px 2px 20px;
+  display:flex; flex-direction:column; align-items:center; gap:20px;
+}
+.hero-title{text-align:center;}
+.hero-title h1{font-size:38px; letter-spacing:.08em;}
+.hero-sub{color:var(--dim); font-size:12px; letter-spacing:.08em; margin-top:4px;}
+
+.tiles{
+  display:grid; grid-template-columns:repeat(2, 1fr); gap:12px; width:100%;
+}
+.tile{
+  aspect-ratio:1.6/1; border:1px solid var(--line); border-radius:14px;
+  background:var(--panel2); color:var(--ink); cursor:pointer;
+  display:flex; flex-direction:column; justify-content:center; align-items:center; gap:5px;
+  font-family:'Chakra Petch',sans-serif; padding:10px; text-align:center;
+  transition:border-color .2s, background .2s, transform .08s;
+}
+.tile:active{transform:scale(.97);}
+.tile .tn{font-weight:700; font-size:16px; letter-spacing:.12em;}
+.tile .td{font-family:'IBM Plex Mono',monospace; font-weight:400; font-size:9.5px; color:var(--faint); letter-spacing:.03em; line-height:1.35; max-width:150px;}
+.tile.active{border-color:var(--amber); background:#2a2210; box-shadow:0 0 0 1px var(--amber) inset;}
+.tile.active .tn{color:var(--amber);}
+.tile.surprise{border-style:dashed; border-color:var(--rust);}
+.tile.surprise .tn{color:var(--rust);}
+.tile.surprise.active{background:#301a10; box-shadow:0 0 0 1px var(--rust) inset;}
+
+.playbig{
+  width:100%; max-width:420px; padding:20px; border-radius:16px;
+  background:#123028; border:1px solid var(--glass); color:var(--glass);
+  display:flex; align-items:center; justify-content:center; gap:14px;
+  font-family:'Chakra Petch',sans-serif; font-weight:700; letter-spacing:.08em;
+  cursor:pointer; transition:transform .08s, opacity .2s;
+}
+.playbig:active{transform:scale(.99);}
+.playbig:disabled{opacity:.45; cursor:default;}
+.playbig .pi{font-size:22px; line-height:1;}
+.playbig .pl{font-size:15px;}
+.playbig.playing{background:#33290f; border-color:var(--amber); color:var(--amber);}
+
+.hero-row{display:flex; align-items:center; gap:14px; width:100%; max-width:420px;}
+.volwrap{flex:1; display:flex; align-items:center; gap:10px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:10px 14px;}
+.vlabel{font-size:16px; filter:grayscale(1) brightness(1.4);}
+.volwrap input[type=range]{flex:1; height:26px;}
+.volwrap input[type=range]::-webkit-slider-thumb{background:var(--glass); border-color:#0e1a17; width:18px; height:18px; margin-top:-7px;}
+.volwrap input[type=range]::-moz-range-thumb{background:var(--glass); border-color:#0e1a17;}
+.endless-hero{
+  padding:12px 16px; border-radius:12px; border:1px solid var(--line);
+  background:var(--panel2); color:var(--dim); font-family:'Chakra Petch',sans-serif;
+  font-weight:600; font-size:12px; letter-spacing:.08em; cursor:pointer; white-space:nowrap;
+}
+.endless-hero.on{background:#1a2e2a; border-color:var(--glass); color:var(--glass); box-shadow:0 0 14px #7fd8c322;}
+
+.hero-stat{color:var(--glass); font-size:11px; letter-spacing:.05em; min-height:15px; text-align:center;}
+
+.tinker-toggle{
+  margin-top:6px; background:transparent; border:none; color:var(--faint);
+  font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:.05em; cursor:pointer; padding:8px;
+}
+.tinker-toggle:hover{color:var(--dim);}
+
+/* tinker panel hidden until opened */
+.deep{display:none; max-width:920px; margin:0 auto;}
+.deep.open{display:block; margin-top:8px; padding-top:20px; border-top:1px solid var(--line);}
+
+/* ============ NARROW SCREENS ============ */
+@media (max-width:640px){
+  body{padding:16px 12px 50px;}
+  /* the tinker mini-transport shouldn't stay pinned on a phone; let it scroll */
+  .panel.sticky{position:static; box-shadow:none;}
+  .transport{gap:8px;}
+  .transport button{flex:1 1 auto; min-width:0;}
+  .seedbox{margin-left:0; width:100%; flex-wrap:wrap; margin-top:8px;}
+  .grid{grid-template-columns:1fr;}
+  .endless{flex-direction:column; align-items:stretch;}
+  .ectl{max-width:none;}
+  canvas{height:110px;}
+}
+@media (max-width:380px){
+  .tiles{grid-template-columns:1fr;}
+  .tile{aspect-ratio:2.6/1;}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============ HERO FACE (the whole experience, for a listener) ============ -->
+  <section class="hero">
+    <div class="hero-title">
+      <h1>PAT<span class="tail">INA</span></h1>
+      <div class="hero-sub">endless drones &#183; made for Luna</div>
+    </div>
+
+    <div class="tiles" id="tiles"></div>
+
+    <button class="playbig" id="play" disabled>
+      <span class="pi" id="playicon">&#9654;</span>
+      <span class="pl" id="playlabel">press to begin</span>
+    </button>
+
+    <div class="hero-row">
+      <div class="volwrap">
+        <span class="vlabel">&#128266;</span>
+        <input type="range" id="vol" min="0" max="1" step="0.01" value="0.85">
+      </div>
+      <button class="endless-hero on" id="endless">EVOLVING &#9673;</button>
+    </div>
+    <div class="hero-stat" id="estat"></div>
+
+    <button class="tinker-toggle" id="tinker">drone settings &#9662;</button>
+  </section>
+
+  <!-- ============ TINKER PANEL (hidden until asked for) ============ -->
+  <div class="deep" id="deep">
+
+  <div class="panel sticky" id="minitransport">
+    <div class="transport">
+      <button class="pri" id="play2" disabled>PLAY</button>
+      <button id="wav" disabled>EXPORT WAV</button>
+      <button id="json">PARAMS &#8594; JSON</button>
+      <button id="import">IMPORT JSON</button>
+      <input type="file" id="importfile" accept="application/json,.json" style="display:none">
+      <div class="seedbox">
+        <label>SEED</label>
+        <input type="number" id="seed" min="0" max="999999" step="1">
+        <button id="dice">&#8635;</button>
+        <button class="wild" id="wild">WILD</button>
+        <label>LOOP</label>
+        <select id="looplen">
+          <option value="32">32 s</option>
+          <option value="48" selected>48 s</option>
+          <option value="64">64 s</option>
+          <option value="96">96 s</option>
+        </select>
+      </div>
+    </div>
+    <div class="tstat" id="tstat">building stems...</div>
+    <div class="endless" id="endlessrow">
+      <div class="ectl">
+        <label>DRIFT<span class="eval" id="driftval">gentle</span></label>
+        <input type="range" id="drift" min="0" max="1" step="0.01" value="0.4">
+      </div>
+      <div class="ectl">
+        <label>RECOMPOSE<span class="eval" id="recompval">~8 min</span></label>
+        <input type="range" id="recomp" min="0" max="1" step="0.01" value="0.5">
+      </div>
+    </div>
+    <textarea id="jsonbox" spellcheck="false" readonly></textarea>
+  </div>
+
+  <div class="panel">
+    <div class="sec-title">VIBE PRESETS &#8212; CHORD PAIR + FULL PARAMETER SET</div>
+    <div class="presets" id="presets"></div>
+    <div class="presetnote" id="presetnote">&#8212;</div>
+  </div>
+
+  <div class="panel">
+    <canvas id="wave" width="1760" height="300"></canvas>
+    <div class="legend">
+      <span><span class="dot" style="background:var(--amber)"></span>clean bed</span>
+      <span><span class="dot" style="background:var(--rust)"></span>bass stem</span>
+      <span><span class="dot" style="background:var(--glass)"></span>live output</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="sec-title">COMPOSITION &#8212; <span class="tag rb">REBUILDS STEMS ON RELEASE</span></div>
+    <div class="grid" id="gComp"></div>
+    <div class="sec-title">MIX &#8212; <span class="tag">LIVE</span></div>
+    <div class="grid" id="gMix"></div>
+    <div class="sec-title">DEGRADATION &#8212; <span class="tag">LIVE</span></div>
+    <div class="grid" id="gDeg"></div>
+    <div class="sec-title">SPACE &#8212; <span class="tag">LIVE (SIZE / DARKNESS SWAP THE ROOM ON RELEASE)</span></div>
+    <div class="grid" id="gSpace"></div>
+  </div>
+
+  <div class="foot">
+    The composition renders offline into clean, seam-wrapped loop stems; everything you hear plays
+    through a live damage chain the sliders write to directly. EXPORT WAV re-runs the identical chain
+    offline with all modulators quantized to whole cycles per loop &#8212; same seed + same params
+    &#8594; identical file.
+  </div>
+
+  </div><!-- /.deep -->
+</div>
+
+<script>
+'use strict';
+
+// ---------- seeded PRNG (mulberry32) ----------
+function mulberry32(a){
+  return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+// ---------- state ----------
+const state = {
+  seed: 4127,
+  loopLen: 48,
+  preset: 'SHRINE',
+  comp: { root: 52, voices: 3, segLen: 14, bellRate: 0.12, bellBright: 0.55 },
+  mix:  { bass: 0.25, air: 0.30 },
+  degrade: { crush: 0.18, wow: 0.45, flutter: 0.25, lowpass: 4200, crackle: 0.22, haunt: 0.04, breathe: 0.22, breatheRate: 0.06 },
+  space: { size: 6, wet: 0.50, dark: 0.45 },
+  wildChords: { mode: 'lydian', chordA: [0,7,11,14], chordB: [2,6,9,14] }
+};
+
+const PRESETS = {
+  SHRINE: {
+    note: 'lydian pair, warm and floating &#8212; the calm the shrines are made of',
+    chordA: [0,7,11,14], chordB: [2,6,9,14],
+    comp: { root: 52, voices: 3, segLen: 14, bellRate: 0.12, bellBright: 0.55 },
+    mix:  { bass: 0.25, air: 0.30 },
+    degrade: { crush: 0.18, wow: 0.45, flutter: 0.25, lowpass: 4200, crackle: 0.22, haunt: 0.04, breathe: 0.22, breatheRate: 0.06 },
+    space: { size: 6, wet: 0.50, dark: 0.45 }
+  },
+  DEEPS: {
+    note: 'minor and low-lit &#8212; beds for high-chaos regions, heard through the murk',
+    chordA: [0,3,10,14], chordB: [5,8,12,15],
+    comp: { root: 47, voices: 3, segLen: 18, bellRate: 0.07, bellBright: 0.30 },
+    mix:  { bass: 0.45, air: 0.40 },
+    degrade: { crush: 0.30, wow: 0.55, flutter: 0.35, lowpass: 2400, crackle: 0.35, haunt: 0.08, breathe: 0.30, breatheRate: 0.05 },
+    space: { size: 8, wet: 0.55, dark: 0.70 }
+  },
+  COSMIC: {
+    note: 'quartal drift, big glass reverb &#8212; ancient, geometric, benevolent-indifferent',
+    chordA: [0,5,10,15], chordB: [2,7,12,17],
+    comp: { root: 50, voices: 4, segLen: 16, bellRate: 0.18, bellBright: 0.70 },
+    mix:  { bass: 0.20, air: 0.35 },
+    degrade: { crush: 0.22, wow: 0.40, flutter: 0.20, lowpass: 5200, crackle: 0.18, haunt: 0.05, breathe: 0.35, breatheRate: 0.08 },
+    space: { size: 10, wet: 0.60, dark: 0.35 }
+  },
+  RELIC: {
+    note: 'major-minor blur, heaviest damage &#8212; a half-erased recording of somewhere gone',
+    chordA: [0,7,12,16], chordB: [0,7,12,15],
+    comp: { root: 48, voices: 2, segLen: 20, bellRate: 0.05, bellBright: 0.35 },
+    mix:  { bass: 0.0, air: 0.50 },
+    degrade: { crush: 0.50, wow: 0.80, flutter: 0.60, lowpass: 1800, crackle: 0.60, haunt: 0.12, breathe: 0.25, breatheRate: 0.04 },
+    space: { size: 7, wet: 0.55, dark: 0.80 }
+  },
+  ADVENTURE: {
+    note: 'mixolydian warmth, the bass leads &#8212; the drifty end of a region theme',
+    chordA: [0,7,10,14], chordB: [-2,2,5,10],
+    comp: { root: 50, voices: 3, segLen: 12, bellRate: 0.15, bellBright: 0.50 },
+    mix:  { bass: 0.80, air: 0.25 },
+    degrade: { crush: 0.20, wow: 0.50, flutter: 0.30, lowpass: 3600, crackle: 0.28, haunt: 0.03, breathe: 0.20, breatheRate: 0.10 },
+    space: { size: 5, wet: 0.40, dark: 0.50 }
+  },
+  VOID: {
+    note: 'open fifths only, near-static &#8212; for the rooms where the silence has weight',
+    chordA: [0,7,12], chordB: [0,7,14],
+    comp: { root: 45, voices: 3, segLen: 24, bellRate: 0.02, bellBright: 0.20 },
+    mix:  { bass: 0.0, air: 0.45 },
+    degrade: { crush: 0.25, wow: 0.60, flutter: 0.40, lowpass: 2000, crackle: 0.30, haunt: 0.10, breathe: 0.40, breatheRate: 0.035 },
+    space: { size: 12, wet: 0.70, dark: 0.75 }
+  },
+  TIDES: {
+    note: 'dorian, rocking slowly between two chords &#8212; a warm sea breathing in the dark',
+    chordA: [0,3,7,10], chordB: [-2,2,5,10],
+    comp: { root: 48, voices: 3, segLen: 20, bellRate: 0.06, bellBright: 0.35 },
+    mix:  { bass: 0.35, air: 0.42 },
+    degrade: { crush: 0.20, wow: 0.62, flutter: 0.32, lowpass: 3000, crackle: 0.26, haunt: 0.05, breathe: 0.48, breatheRate: 0.03 },
+    space: { size: 9, wet: 0.62, dark: 0.58 }
+  },
+  AURORA: {
+    note: 'lydian shimmer, high and cold and clear &#8212; light moving across an empty sky',
+    chordA: [0,4,7,11], chordB: [2,6,9,13],
+    comp: { root: 55, voices: 4, segLen: 18, bellRate: 0.14, bellBright: 0.85 },
+    mix:  { bass: 0.15, air: 0.30 },
+    degrade: { crush: 0.16, wow: 0.42, flutter: 0.22, lowpass: 6000, crackle: 0.16, haunt: 0.04, breathe: 0.30, breatheRate: 0.07 },
+    space: { size: 11, wet: 0.66, dark: 0.28 }
+  }
+};
+
+// merge-restore: assign into existing sub-objects, never replace state wholesale
+function applyPreset(name){
+  const p = PRESETS[name];
+  state.preset = name;
+  Object.assign(state.comp, p.comp);
+  Object.assign(state.mix, p.mix);
+  Object.assign(state.degrade, p.degrade);
+  Object.assign(state.space, p.space);
+}
+
+// ---------- WILD: chord pairs the presets would never authorize ----------
+const SCALES = {
+  lydian: [0,2,4,6,7,9,11],
+  mixolydian: [0,2,4,5,7,9,10],
+  dorian: [0,2,3,5,7,9,10],
+  aeolian: [0,2,3,5,7,8,10],
+  phrygian: [0,1,3,5,7,8,10],
+  'harmonic minor': [0,2,3,5,7,8,11],
+  'whole tone': [0,2,4,6,8,10],
+  pentatonic: [0,2,4,7,9]
+};
+
+// stack scale tones in thirds from a random degree, spilling into the octave above
+function stackChord(scale, rng, size){
+  const n = scale.length;
+  const start = Math.floor(rng() * n);
+  const out = [];
+  for (let i = 0; i < size; i++){
+    const idx = start + i * 2;
+    out.push(scale[idx % n] + 12 * Math.floor(idx / n));
+  }
+  return out;
+}
+
+function rollChords(rng){
+  if (rng() < 0.15){                                   // quartal stacks, transposed
+    const t = Math.floor(rng() * 7), u = Math.floor(rng() * 7);
+    return { mode: 'quartal', chordA: [0,5,10,15].map(x => x + t), chordB: [0,5,10,15].map(x => x + u) };
+  }
+  const keys = Object.keys(SCALES);
+  const k = keys[Math.floor(rng() * keys.length)];
+  const s = SCALES[k];
+  const size = rng() < 0.5 ? 3 : 4;
+  return { mode: k, chordA: stackChord(s, rng, size), chordB: stackChord(s, rng, size) };
+}
+
+// the chord pair + caption for whatever mode we're in
+function chordSet(){
+  if (state.preset !== 'WILD') return PRESETS[state.preset];
+  const w = state.wildChords;
+  return {
+    chordA: w.chordA, chordB: w.chordB,
+    note: 'wild roll &#183; ' + w.mode + ' &#183; A [' + w.chordA.join(' ') + '] B [' +
+          w.chordB.join(' ') + '] &#183; seed ' + state.seed +
+          ' &#8212; every slider rolled across its full range, so this is as likely to be unusable as gorgeous. PARAMS &#8594; JSON to keep it.'
+  };
+}
+
+// ---------- helpers ----------
+const SR = 44100;
+const midiToFreq = m => 440 * Math.pow(2, (m - 69) / 12);
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const noteName = m => NOTE_NAMES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
+const qf = (f, L) => Math.max(1, Math.round(f * L)) / L;   // whole cycles per loop
+const idf = f => f;                                         // live: free-running
+
+function crushCurve(amount){
+  const n = 1024, curve = new Float32Array(n);
+  const levels = Math.max(2, Math.round(Math.pow(2, 8 - amount * 6)));
+  for (let i = 0; i < n; i++){
+    const x = (i / (n - 1)) * 2 - 1;
+    curve[i] = Math.round(x * levels) / levels;
+  }
+  return curve;
+}
+
+// ---------- composition pass (pure, seeded; bass always composed at unity) ----------
+function compose(){
+  const rng = mulberry32(state.seed);
+  const L = state.loopLen, c = state.comp;
+  const preset = chordSet();
+
+  const nSeg = Math.max(1, Math.round(L / c.segLen));
+  const segDur = L / nSeg;
+  const segs = [];
+  let cur = 0;
+  for (let i = 0; i < nSeg; i++){
+    segs.push({ t: i * segDur, dur: segDur, chord: cur ? preset.chordB : preset.chordA });
+    if (rng() < 0.55) cur = 1 - cur;
+  }
+
+  const drones = [];
+  for (const s of segs){
+    for (let v = 0; v < c.voices; v++){
+      const tone = s.chord[Math.floor(rng() * s.chord.length)];
+      let midi = c.root + tone;
+      if (v === 0) midi -= 12;
+      else if (rng() < 0.4) midi += 12;
+      drones.push({
+        t: s.t, dur: s.dur, midi,
+        atk: 2.2 + rng() * 2.2, rel: 3.0 + rng() * 3.0,
+        det: 4 + rng() * 5,
+        pan: (rng() * 2 - 1) * 0.55,
+        lp: 1300 + rng() * 1300
+      });
+    }
+  }
+
+  const bells = [];
+  if (c.bellRate > 0.001){
+    let t = -Math.log(1 - rng()) / c.bellRate;
+    while (t < L){
+      const s = segs[Math.min(segs.length - 1, Math.floor(t / segDur))];
+      const tone = s.chord[Math.floor(rng() * s.chord.length)];
+      const oct = (rng() < 0.35 + c.bellBright * 0.4) ? 24 : 12;
+      bells.push({
+        t, midi: c.root + tone + oct,
+        vel: 0.35 + rng() * 0.65,
+        ratio: rng() < 0.5 ? 2.0 : 2.76,
+        decay: 1.8 + rng() * 2.8,
+        pan: (rng() * 2 - 1) * 0.7
+      });
+      t += -Math.log(1 - rng()) / c.bellRate;
+    }
+  }
+
+  const bassNotes = [];
+  let t = 0.5 + rng() * 2;
+  while (t < L){
+    const s = segs[Math.min(segs.length - 1, Math.floor(t / segDur))];
+    const tone = rng() < 0.7 ? s.chord[0] : s.chord[1 % s.chord.length];
+    let midi = c.root + tone - 24;
+    while (midiToFreq(midi) < 32) midi += 12;
+    bassNotes.push({ t, midi, amp: 0.6 + rng() * 0.4 });
+    t += 4 + rng() * 5;
+  }
+
+  return { segs, drones, bells, bassNotes };
+}
+
+// ---------- clean stem rendering (offline, double pass, extract second) ----------
+function extractLoop(full, L){
+  const keep = Math.round(L * SR);
+  const out = new AudioBuffer({ length: keep, numberOfChannels: 2, sampleRate: SR });
+  for (let ch = 0; ch < 2; ch++){
+    out.copyToChannel(full.getChannelData(ch).subarray(keep, keep * 2), ch);
+  }
+  return out;
+}
+
+async function renderBedStem(score){
+  const L = state.loopLen, total = L * 2;
+  const ctx = new OfflineAudioContext(2, Math.round(total * SR), SR);
+  const bus = ctx.createGain(); bus.connect(ctx.destination);
+  for (const off of [0, L]) scheduleBed(ctx, bus, score, off, total);
+  return extractLoop(await ctx.startRendering(), L);
+}
+
+async function renderBassStem(score){
+  const L = state.loopLen, total = L * 2;
+  const ctx = new OfflineAudioContext(2, Math.round(total * SR), SR);
+  const bus = ctx.createGain(); bus.connect(ctx.destination);
+  const oscs = [];
+  buildBass(ctx, bus, score.bassNotes, L, total, oscs);
+  for (const o of oscs){ o.start(0); o.stop(total); }
+  return extractLoop(await ctx.startRendering(), L);
+}
+
+function scheduleBed(ctx, bus, score, off, total){
+  for (const dr of score.drones){
+    const t0 = off + dr.t;
+    if (t0 >= total) continue;
+    const f = midiToFreq(dr.midi);
+    const g = ctx.createGain(); g.gain.value = 0;
+    const pan = ctx.createStereoPanner(); pan.pan.value = dr.pan;
+    const vlp = ctx.createBiquadFilter();
+    vlp.type = 'lowpass'; vlp.frequency.value = dr.lp; vlp.Q.value = 0.5;
+
+    const lvl = 0.42 / Math.max(1, state.comp.voices);
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(lvl, t0 + dr.atk);
+    g.gain.setValueAtTime(lvl, t0 + dr.dur);
+    g.gain.linearRampToValueAtTime(0, t0 + dr.dur + dr.rel);
+
+    const mk = (type, det, gn, fmul) => {
+      const o = ctx.createOscillator();
+      o.type = type; o.frequency.value = f * fmul; o.detune.value = det;
+      const og = ctx.createGain(); og.gain.value = gn;
+      o.connect(og).connect(vlp);
+      o.start(t0); o.stop(Math.min(total, t0 + dr.dur + dr.rel + 0.1));
+    };
+    mk('sawtooth',  dr.det, 0.5, 1);
+    mk('sawtooth', -dr.det, 0.5, 1);
+    mk('sine', 0, 0.55, 0.5);                    // sub layer, an octave below
+    vlp.connect(g).connect(pan).connect(bus);
+  }
+  for (const b of score.bells){
+    const t0 = off + b.t;
+    if (t0 >= total) continue;
+    const f = midiToFreq(b.midi);
+    const car = ctx.createOscillator(); car.frequency.value = f;
+    const mod = ctx.createOscillator(); mod.frequency.value = f * b.ratio;
+    const modG = ctx.createGain();
+    const idx = f * (0.5 + state.comp.bellBright * 2.2);
+    modG.gain.setValueAtTime(idx, t0);
+    modG.gain.setTargetAtTime(0, t0, b.decay * 0.4);
+    mod.connect(modG).connect(car.frequency);
+    const env = ctx.createGain(); env.gain.value = 0;
+    env.gain.setValueAtTime(0, t0);
+    env.gain.linearRampToValueAtTime(0.11 * b.vel, t0 + 0.006);
+    env.gain.setTargetAtTime(0, t0 + 0.006, b.decay * 0.5);
+    const pan = ctx.createStereoPanner(); pan.pan.value = b.pan;
+    car.connect(env).connect(pan).connect(bus);
+    const stop = Math.min(total, t0 + b.decay * 3);
+    car.start(t0); car.stop(stop); mod.start(t0); mod.stop(stop);
+  }
+}
+
+function buildBass(ctx, bus, notes, L, total, oscs){
+  if (!notes.length) return;
+  const saw = ctx.createOscillator(); saw.type = 'sawtooth';
+  const sub = ctx.createOscillator(); sub.type = 'sine';
+  const sawG = ctx.createGain(); sawG.gain.value = 0.4;
+  const subG = ctx.createGain(); subG.gain.value = 0.7;
+  const blp = ctx.createBiquadFilter();
+  blp.type = 'lowpass'; blp.frequency.value = 420; blp.Q.value = 0.6;
+  const env = ctx.createGain(); env.gain.value = 0;
+
+  const f0 = midiToFreq(notes[0].midi);
+  saw.frequency.value = f0; sub.frequency.value = f0 / 2;
+
+  for (const off of [0, L]){
+    for (const n of notes){
+      const t = off + n.t;
+      if (t >= total) continue;
+      const f = midiToFreq(n.midi);
+      saw.frequency.setTargetAtTime(f, t, 0.35);
+      sub.frequency.setTargetAtTime(f / 2, t, 0.35);
+      const peak = 0.30 * n.amp;                 // unity stem; presence is a live gain
+      env.gain.setTargetAtTime(peak, t, 0.9);
+      env.gain.setTargetAtTime(peak * 0.55, t + 2.5, 1.4);
+    }
+  }
+  saw.connect(sawG).connect(blp);
+  sub.connect(subG).connect(blp);
+  blp.connect(env).connect(bus);
+  oscs.push(saw, sub);
+}
+
+// ---------- seeded texture buffers (context-free) ----------
+function makeIR(seconds, dark, rng){
+  const len = Math.round(seconds * SR);
+  const buf = new AudioBuffer({ length: len, numberOfChannels: 2, sampleRate: SR });
+  const k = 6.9 / seconds;
+  const alpha = 0.02 + dark * 0.55;
+  for (let ch = 0; ch < 2; ch++){
+    const data = buf.getChannelData(ch);
+    let y = 0;
+    for (let i = 0; i < len; i++){
+      const t = i / SR;
+      const x = (rng() * 2 - 1) * Math.exp(-k * t);
+      y = y + alpha * (x - y) * (1 - dark * 0.7 * (t / seconds));
+      data[i] = y;
+    }
+    for (let i = 0; i < 220; i++) data[i] *= i / 220;
+  }
+  return buf;
+}
+
+function makeCrackle(L, density, rng){
+  const len = Math.round(L * SR);
+  const buf = new AudioBuffer({ length: len, numberOfChannels: 2, sampleRate: SR });
+  const pops = Math.round(L * (2 + density * 14));
+  for (let ch = 0; ch < 2; ch++){
+    const data = buf.getChannelData(ch);
+    let h = 0;
+    for (let i = 0; i < len; i++){
+      h = h * 0.7 + (rng() * 2 - 1) * 0.3;
+      data[i] = h * 0.0035;                       // hiss floor at unity
+    }
+    for (let p = 0; p < pops; p++){
+      const at = Math.floor(rng() * (len - 400));
+      const amp = (0.02 + rng() * 0.09) * (rng() < 0.15 ? 2.2 : 1);
+      const dlen = 40 + Math.floor(rng() * 260);
+      for (let i = 0; i < dlen && at + i < len; i++){
+        data[at + i] += (rng() * 2 - 1) * amp * Math.exp(-i / (dlen * 0.25));
+      }
+    }
+  }
+  return buf;
+}
+
+function makeAir(L, rng){
+  const len = Math.round(L * SR);
+  const buf = new AudioBuffer({ length: len, numberOfChannels: 2, sampleRate: SR });
+  for (let ch = 0; ch < 2; ch++){
+    const data = buf.getChannelData(ch);
+    for (let i = 0; i < len; i++) data[i] = rng() * 2 - 1;
+  }
+  return buf;
+}
+
+// ---------- damage chain builder (shared by live and export) ----------
+// q: frequency mapper (idf live, f=>qf(f,L) for export)
+function buildChain(ctx, L, q, irBuf){
+  const N = {};
+  const d = state.degrade, sp = state.space;
+
+  N.dryBus = ctx.createGain();
+
+  N.shaper = ctx.createWaveShaper();
+  N.shaper.oversample = '2x';
+  N.shaper.curve = crushCurve(d.crush);
+
+  N.ringDry = ctx.createGain(); N.ringDry.gain.value = 1 - d.haunt;
+  N.ringWet = ctx.createGain(); N.ringWet.gain.value = 0;
+  N.ringLvl = ctx.createGain(); N.ringLvl.gain.value = d.haunt;
+  N.ringOsc = ctx.createOscillator();
+  N.ringOsc.frequency.value = q(66);
+  N.ringOsc.connect(N.ringWet.gain);
+  const ringSum = ctx.createGain();
+
+  N.wob = ctx.createDelay(0.2);
+  N.wob.delayTime.value = 0.03;
+  N.wow1 = ctx.createOscillator(); N.wow1.frequency.value = q(0.31);
+  N.wow2 = ctx.createOscillator(); N.wow2.frequency.value = q(0.043);
+  N.flut = ctx.createOscillator(); N.flut.frequency.value = q(6.7);
+  N.wow1G = ctx.createGain(); N.wow1G.gain.value = d.wow * 0.0032;
+  N.wow2G = ctx.createGain(); N.wow2G.gain.value = d.wow * 0.0022;
+  N.flutG = ctx.createGain(); N.flutG.gain.value = d.flutter * 0.0009;
+  N.wow1.connect(N.wow1G).connect(N.wob.delayTime);
+  N.wow2.connect(N.wow2G).connect(N.wob.delayTime);
+  N.flut.connect(N.flutG).connect(N.wob.delayTime);
+
+  N.lp = ctx.createBiquadFilter();
+  N.lp.type = 'lowpass'; N.lp.frequency.value = d.lowpass; N.lp.Q.value = 0.4;
+
+  // convolver pair for click-free room swaps (live); export only ever uses A
+  N.convA = ctx.createConvolver(); N.convA.buffer = irBuf;
+  N.convB = ctx.createConvolver();
+  N.convAG = ctx.createGain(); N.convAG.gain.value = 1;
+  N.convBG = ctx.createGain(); N.convBG.gain.value = 0;
+  N.spDry = ctx.createGain(); N.spDry.gain.value = 1 - sp.wet;
+  N.spWet = ctx.createGain(); N.spWet.gain.value = sp.wet;
+
+  N.mixBus = ctx.createGain();
+
+  N.breatheG = ctx.createGain(); N.breatheG.gain.value = 1 - d.breathe * 0.5;
+  N.brOsc = ctx.createOscillator(); N.brOsc.frequency.value = q(d.breatheRate);
+  N.brDepth = ctx.createGain(); N.brDepth.gain.value = d.breathe * 0.5;
+  N.brOsc.connect(N.brDepth).connect(N.breatheG.gain);
+
+  N.compn = ctx.createDynamicsCompressor();
+  N.compn.threshold.value = -14; N.compn.ratio.value = 3;
+  N.compn.attack.value = 0.01; N.compn.release.value = 0.25;
+  N.master = ctx.createGain(); N.master.gain.value = 0.85;
+
+  N.dryBus.connect(N.shaper);
+  N.shaper.connect(N.ringDry).connect(ringSum);
+  N.shaper.connect(N.ringWet).connect(N.ringLvl).connect(ringSum);
+  ringSum.connect(N.wob).connect(N.lp);
+  N.lp.connect(N.spDry).connect(N.mixBus);
+  N.lp.connect(N.convA).connect(N.convAG).connect(N.spWet);
+  N.lp.connect(N.convB).connect(N.convBG).connect(N.spWet);
+  N.spWet.connect(N.mixBus);
+  N.mixBus.connect(N.breatheG).connect(N.compn).connect(N.master);
+
+  // per-chain mix gains for the stems/textures
+  N.bassGain = ctx.createGain(); N.bassGain.gain.value = state.mix.bass;
+  N.bassGain.connect(N.dryBus);
+  N.airBP = ctx.createBiquadFilter();
+  N.airBP.type = 'bandpass'; N.airBP.frequency.value = 900; N.airBP.Q.value = 0.8;
+  N.airLFO = ctx.createOscillator(); N.airLFO.frequency.value = q(0.05);
+  N.airLFOd = ctx.createGain(); N.airLFOd.gain.value = 450;
+  N.airLFO.connect(N.airLFOd).connect(N.airBP.frequency);
+  N.airG = ctx.createGain(); N.airG.gain.value = state.mix.air * 0.05;
+  N.airBP.connect(N.airG).connect(N.dryBus);
+  N.crkG = ctx.createGain(); N.crkG.gain.value = state.degrade.crackle;
+  N.crkG.connect(N.mixBus);                       // media noise: after the room
+
+  N.oscs = [N.ringOsc, N.wow1, N.wow2, N.flut, N.brOsc, N.airLFO];
+  return N;
+}
+
+// ---------- app state ----------
+const $ = id => document.getElementById(id);
+let stems = null;         // the current on-screen composition { bedBuf, bassBuf, crackleBuf, airBuf, score }
+let liveCtx = null, LN = null, playing = false;
+let analyser = null, rafId = 0;
+let building = false, buildQueued = false;
+let crushT = 0, convFlip = false;
+let monitorVol = 0.85;   // live monitoring level; NOT part of state, never touches export
+
+// stem slots: each holds a set of looping sources feeding the chain through its own fade gain.
+// Normal play uses slot A; an endless recompose renders into the idle slot and crossfades.
+let slots = [null, null];   // each: { srcs:[...], fade:GainNode, stems, active:bool }
+let activeSlot = 0;
+
+// ---------- stem rebuild ----------
+async function rebuildStems(){
+  if (building){ buildQueued = true; return; }
+  building = true;
+  setStat('rebuilding stems...');
+  const wasPlaying = playing;
+  stopSources();
+  try {
+    const score = compose();
+    const rngTex = mulberry32(state.seed ^ 0x9E3779B9);
+    const bedBuf = await renderBedStem(score);
+    const bassBuf = await renderBassStem(score);
+    const crackleBuf = makeCrackle(state.loopLen, state.degrade.crackle, rngTex);
+    const airBuf = makeAir(state.loopLen, rngTex);
+    stems = { bedBuf, bassBuf, crackleBuf, airBuf, score };
+    drawStems();
+    setStat('seed <b>' + state.seed + '</b> \u00B7 ' + state.preset + ' \u00B7 ' + state.loopLen +
+            ' s \u00B7 ' + score.segs.length + ' segments \u00B7 ' + score.bells.length + ' bells' +
+            (playing || wasPlaying ? '' : ' \u00B7 ready'));
+    if ($('play')) $('play').disabled = false;
+    if ($('wav')) $('wav').disabled = false;
+    // resume if we were playing, or auto-begin when the listener has evolving armed
+    // and there was an explicit intent (a tile/preset tap sets pendingAutoStart)
+    if (wasPlaying || pendingAutoStart) startSources();
+    pendingAutoStart = false;
+  } catch (e){
+    setStat('stem build failed: ' + e.message);
+  }
+  building = false;
+  if (buildQueued){ buildQueued = false; rebuildStems(); }
+}
+
+function setStat(html){ $('tstat').innerHTML = html; }
+
+// ---------- live playback ----------
+function ensureLive(){
+  if (liveCtx) return;
+  liveCtx = new AudioContext({ sampleRate: SR });
+  const rngIR = mulberry32(state.seed ^ 0x51ED270B);
+  LN = buildChain(liveCtx, state.loopLen, idf, makeIR(state.space.size, state.space.dark, rngIR));
+  LN.master.gain.value = monitorVol;   // live monitoring level (export uses its own chain at ref)
+  LN.master.connect(liveCtx.destination);
+  analyser = liveCtx.createAnalyser();
+  analyser.fftSize = 2048;
+  LN.master.connect(analyser);
+  for (const o of LN.oscs) o.start();
+}
+
+function reflectPlaying(){
+  // big hero button
+  const pi = $('playicon'), pl = $('playlabel'), pb = $('play');
+  if (pb) pb.classList.toggle('playing', playing);
+  if (pi) pi.innerHTML = playing ? '&#10073;&#10073;' : '&#9654;';   // pause bars / play triangle
+  if (pl) pl.textContent = playing ? 'playing' : 'press to begin';
+  // mini transport button in the tinker panel
+  const p2 = $('play2');
+  if (p2){ p2.textContent = playing ? 'STOP' : 'PLAY'; p2.classList.toggle('on', playing); }
+}
+
+function startSources(){
+  if (!stems) return;
+  ensureLive();
+  liveCtx.resume();
+  spawnSlot(activeSlot, stems, 1);   // active slot at full level
+  playing = true;
+  reflectPlaying();
+  runScope();
+  if (wantEndless && !endless.on) startEndless();   // resume evolving if it was on
+}
+
+// spawn a set of looping sources for `st` into slot `i`. Each stem lands at its correct
+// point in the chain (bed->dryBus, bass->bassGain, air->airBP, crackle->crkG), and each
+// passes through a per-slot gain. The four gains share one fade value, ramped together, so
+// the whole slot crossfades as a unit while every stem stays at its right chain position.
+function spawnSlot(i, st, fadeInitial, startAt){
+  const f = fadeInitial;
+  const bedG = liveCtx.createGain(); bedG.gain.value = f; bedG.connect(LN.dryBus);
+  const bassG = liveCtx.createGain(); bassG.gain.value = f; bassG.connect(LN.bassGain);
+  const airG = liveCtx.createGain(); airG.gain.value = f; airG.connect(LN.airBP);
+  const crkG = liveCtx.createGain(); crkG.gain.value = f; crkG.connect(LN.crkG);
+  const gains = [bedG, bassG, airG, crkG];
+  const srcs = [];
+  const when = startAt || 0;
+  const mk = (buf, dest) => {
+    const s = liveCtx.createBufferSource();
+    s.buffer = buf; s.loop = true;
+    s.connect(dest);
+    when ? s.start(when) : s.start();
+    srcs.push(s);
+  };
+  mk(st.bedBuf, bedG);
+  mk(st.bassBuf, bassG);
+  mk(st.airBuf, airG);
+  mk(st.crackleBuf, crkG);
+  const startedAt = when || liveCtx.currentTime;
+  slots[i] = { srcs, gains, stems: st, level: f, startedAt };
+}
+
+// the next time the active slot's loop wraps, at least `minLead` seconds from now
+function nextLoopBoundary(minLead){
+  const sl = slots[activeSlot];
+  const now = liveCtx.currentTime;
+  if (!sl) return now + (minLead || 0);
+  const elapsed = now - sl.startedAt;
+  const L = state.loopLen;
+  let n = Math.ceil((elapsed + (minLead || 0)) / L);
+  return sl.startedAt + n * L;
+}
+
+// ramp a slot's four gains together to `target` over `dur` seconds, starting at `at`
+function fadeSlot(i, target, dur, at){
+  const sl = slots[i];
+  if (!sl) return;
+  const t = at || liveCtx.currentTime;
+  for (const g of sl.gains){
+    g.gain.cancelScheduledValues(t);
+    g.gain.setValueAtTime(g.gain.value, t);
+    g.gain.linearRampToValueAtTime(target, t + dur);
+  }
+  sl.level = target;
+}
+
+function stopSlot(i){
+  const sl = slots[i];
+  if (!sl) return;
+  for (const s of sl.srcs){ try { s.stop(); } catch (e){} }
+  for (const g of sl.gains){ try { g.disconnect(); } catch (e){} }
+  slots[i] = null;
+}
+
+function stopSources(){
+  stopSlot(0); stopSlot(1);
+  activeSlot = 0;
+  if (endless.on) stopEndless();   // wantEndless preserved; play resumes it
+  if (playing){
+    playing = false;
+    reflectPlaying();
+  }
+  cancelAnimationFrame(rafId);
+  drawStems();
+}
+
+function togglePlay(){ playing ? stopSources() : startSources(); }
+
+// ---------- live parameter application ----------
+function applyLive(group, key){
+  if (!LN) return;
+  const t = liveCtx.currentTime, d = state.degrade, sp = state.space, mx = state.mix;
+  const set = (param, v, tc) => param.setTargetAtTime(v, t, tc || 0.03);
+  switch (group + '.' + key){
+    case 'degrade.crush': {
+      const now = performance.now();
+      if (now - crushT > 60){ LN.shaper.curve = crushCurve(d.crush); crushT = now; }
+      break;
+    }
+    case 'degrade.wow':
+      set(LN.wow1G.gain, d.wow * 0.0032); set(LN.wow2G.gain, d.wow * 0.0022); break;
+    case 'degrade.flutter':
+      set(LN.flutG.gain, d.flutter * 0.0009); break;
+    case 'degrade.lowpass':
+      set(LN.lp.frequency, d.lowpass, 0.05); break;
+    case 'degrade.crackle':
+      set(LN.crkG.gain, d.crackle); break;
+    case 'degrade.haunt':
+      set(LN.ringDry.gain, 1 - d.haunt); set(LN.ringLvl.gain, d.haunt); break;
+    case 'degrade.breathe':
+      set(LN.breatheG.gain, 1 - d.breathe * 0.5, 0.1); set(LN.brDepth.gain, d.breathe * 0.5, 0.1); break;
+    case 'degrade.breatheRate':
+      set(LN.brOsc.frequency, d.breatheRate, 0.1); break;
+    case 'space.wet':
+      set(LN.spDry.gain, 1 - sp.wet, 0.05); set(LN.spWet.gain, sp.wet, 0.05); break;
+    case 'mix.bass':
+      set(LN.bassGain.gain, mx.bass, 0.05); break;
+    case 'mix.air':
+      set(LN.airG.gain, mx.air * 0.05, 0.05); break;
+  }
+}
+
+// room swap: build the new IR into the idle convolver, crossfade over 0.35 s
+function swapRoom(){
+  if (!LN) return;
+  const rngIR = mulberry32(state.seed ^ 0x51ED270B);
+  const ir = makeIR(state.space.size, state.space.dark, rngIR);
+  const t = liveCtx.currentTime;
+  const inc = convFlip ? LN.convA : LN.convB;
+  const incG = convFlip ? LN.convAG : LN.convBG;
+  const outG = convFlip ? LN.convBG : LN.convAG;
+  inc.buffer = ir;
+  incG.gain.setTargetAtTime(1, t, 0.12);
+  outG.gain.setTargetAtTime(0, t, 0.12);
+  convFlip = !convFlip;
+}
+
+// ---------- export (offline, quantized, seamless) ----------
+async function exportWav(){
+  if (!stems) return;
+  $('wav').disabled = true;
+  setStat('rendering export...');
+  try {
+    const L = state.loopLen, total = L * 2;
+    const ctx = new OfflineAudioContext(2, Math.round(total * SR), SR);
+    const rngIR = mulberry32(state.seed ^ 0x51ED270B);
+    const N = buildChain(ctx, L, f => qf(f, L), makeIR(state.space.size, state.space.dark, rngIR));
+    N.master.connect(ctx.destination);
+    const mk = (buf, dest) => {
+      const s = ctx.createBufferSource();
+      s.buffer = buf; s.loop = true;
+      s.connect(dest); s.start(0); s.stop(total);
+    };
+    mk(stems.bedBuf, N.dryBus);
+    mk(stems.bassBuf, N.bassGain);
+    mk(stems.airBuf, N.airBP);
+    mk(stems.crackleBuf, N.crkG);
+    for (const o of N.oscs){ o.start(0); o.stop(total); }
+    const t0 = performance.now();
+    const loopBuf = extractLoop(await ctx.startRendering(), L);
+    const blob = bufferToWav(loopBuf);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'patina_' + state.preset.toLowerCase() + '_' + state.seed + '_' + L + 's.wav';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    setStat('exported <b>' + a.download + '</b> \u00B7 rendered in ' + ((performance.now() - t0) / 1000).toFixed(1) + ' s');
+  } catch (e){
+    setStat('export failed: ' + e.message);
+  }
+  $('wav').disabled = false;
+}
+
+function bufferToWav(buf){
+  const n = buf.length, ch = 2, bytes = 44 + n * ch * 2;
+  const ab = new ArrayBuffer(bytes), v = new DataView(ab);
+  const wStr = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  wStr(0, 'RIFF'); v.setUint32(4, bytes - 8, true); wStr(8, 'WAVE');
+  wStr(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true);
+  v.setUint16(22, ch, true); v.setUint32(24, SR, true);
+  v.setUint32(28, SR * ch * 2, true); v.setUint16(32, ch * 2, true); v.setUint16(34, 16, true);
+  wStr(36, 'data'); v.setUint32(40, n * ch * 2, true);
+  const Lc = buf.getChannelData(0), Rc = buf.getChannelData(1);
+  let o = 44;
+  for (let i = 0; i < n; i++){
+    let s = Math.max(-1, Math.min(1, Lc[i]));
+    v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7FFF, true); o += 2;
+    s = Math.max(-1, Math.min(1, Rc[i]));
+    v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7FFF, true); o += 2;
+  }
+  return new Blob([ab], { type: 'audio/wav' });
+}
+
+// ---------- drawing ----------
+function drawStems(){
+  if (!stems) return;
+  const cv = $('wave'), g = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  g.fillStyle = '#100e0b'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#2a2517';
+  for (const s of stems.score.segs){
+    g.fillRect(Math.round(s.t / state.loopLen * W), 0, 2, H);
+  }
+  const drawBuf = (buf, color, alpha) => {
+    const data = buf.getChannelData(0);
+    const step = Math.floor(data.length / W);
+    g.strokeStyle = color; g.lineWidth = 1.5; g.globalAlpha = alpha;
+    g.beginPath();
+    for (let x = 0; x < W; x++){
+      let mn = 1, mx = -1;
+      const base = x * step;
+      for (let i = 0; i < step; i += 8){
+        const v = data[base + i];
+        if (v < mn) mn = v;
+        if (v > mx) mx = v;
+      }
+      g.moveTo(x, H / 2 + mn * H * 0.48);
+      g.lineTo(x, H / 2 + mx * H * 0.48);
+    }
+    g.stroke(); g.globalAlpha = 1;
+  };
+  drawBuf(stems.bedBuf, '#e8b34a', 0.85);
+  drawBuf(stems.bassBuf, '#d07a4f', 0.6);
+}
+
+function runScope(){
+  const cv = $('wave'), g = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  const td = new Float32Array(analyser.fftSize);
+  const frame = () => {
+    if (!playing) return;
+    drawStems();
+    analyser.getFloatTimeDomainData(td);
+    g.strokeStyle = '#7fd8c3'; g.lineWidth = 2; g.globalAlpha = 0.9;
+    g.beginPath();
+    for (let x = 0; x < W; x += 2){
+      const v = td[Math.floor(x / W * td.length)];
+      const y = H / 2 + v * H * 0.44;
+      x === 0 ? g.moveTo(x, y) : g.lineTo(x, y);
+    }
+    g.stroke(); g.globalAlpha = 1;
+    rafId = requestAnimationFrame(frame);
+  };
+  rafId = requestAnimationFrame(frame);
+}
+
+// ---------- UI ----------
+// mode: 'live' (input applies instantly), 'room' (live-ish, swap on release), 'rebuild'
+const SLIDERS = [
+  ['gComp','ROOT NOTE','comp','root',40,64,1, v => noteName(v), 'tonal center of the whole loop', 'rebuild'],
+  ['gComp','DRONE VOICES','comp','voices',1,4,1, v => v, 'chord tones sustained per segment', 'rebuild'],
+  ['gComp','SEGMENT LENGTH','comp','segLen',8,24,1, v => v + ' s', 'how long each chord holds before the walk may flip', 'rebuild'],
+  ['gComp','BELL DENSITY','comp','bellRate',0,0.4,0.01, v => v.toFixed(2) + ' /s', 'Poisson arrivals &#8212; aperiodic by construction', 'rebuild'],
+  ['gComp','BELL BRIGHTNESS','comp','bellBright',0,1,0.01, v => v.toFixed(2), 'FM index + octave reach', 'rebuild'],
+  ['gMix','BASS PRESENCE','mix','bass',0,1,0.01, v => v.toFixed(2), 'the bass stem is always composed &#8212; this is its fader', 'live'],
+  ['gMix','AIR','mix','air',0,1,0.01, v => v.toFixed(2), 'filtered noise bed, drifting bandpass', 'live'],
+  ['gDeg','CRUSH','degrade','crush',0,1,0.01, v => v.toFixed(2), 'bit-quantize, same curve as CLARION', 'live'],
+  ['gDeg','WOW','degrade','wow',0,1,0.01, v => v.toFixed(2), 'slow tape pitch drift', 'live'],
+  ['gDeg','FLUTTER','degrade','flutter',0,1,0.01, v => v.toFixed(2), 'fast tape shiver', 'live'],
+  ['gDeg','LOWPASS','degrade','lowpass',400,8000,50, v => v + ' Hz', 'the age of the recording', 'live'],
+  ['gDeg','CRACKLE','degrade','crackle',0,1,0.01, v => v.toFixed(2), 'level is live; pop density refreshes on next stem rebuild', 'live'],
+  ['gDeg','HAUNT','degrade','haunt',0,0.3,0.01, v => v.toFixed(2), 'ring mod ghost tones &#8212; keep low', 'live'],
+  ['gDeg','BREATHE','degrade','breathe',0,0.8,0.01, v => v.toFixed(2), 'whole-mix swell depth', 'live'],
+  ['gDeg','BREATHE RATE','degrade','breatheRate',0.02,0.25,0.005, v => v.toFixed(3) + ' Hz', 'free-running live; quantized to the loop on export', 'live'],
+  ['gSpace','SIZE','space','size',1,12,0.5, v => v + ' s', 'impulse response length &#8212; new room crossfades in on release', 'room'],
+  ['gSpace','WET','space','wet',0,0.9,0.01, v => v.toFixed(2), 'how far away the music is', 'live'],
+  ['gSpace','DARKNESS','space','dark',0,1,0.01, v => v.toFixed(2), 'tail absorption &#8212; new room crossfades in on release', 'room']
+];
+
+const driftEls = {};   // 'group.key' -> { sync } for the params ENDLESS drives
+
+function buildSliders(){
+  const driftKeys = new Set(DRIFT_PARAMS.map(([g, k]) => g + '.' + k));
+  for (const [grid, label, group, key, min, max, step, fmt, hint, mode] of SLIDERS){
+    const div = document.createElement('div');
+    div.className = 'ctl';
+    div.innerHTML = '<label>' + label + '<span class="val"></span></label>' +
+      '<input type="range" min="' + min + '" max="' + max + '" step="' + step + '">' +
+      '<div class="hint">' + hint + '</div>';
+    const inp = div.querySelector('input');
+    const val = div.querySelector('.val');
+    inp.value = state[group][key];
+    val.textContent = fmt(state[group][key]);
+    inp.addEventListener('input', () => {
+      state[group][key] = parseFloat(inp.value);
+      val.textContent = fmt(state[group][key]);
+      if (mode === 'live') applyLive(group, key);
+      // grabbing a drifting knob hands control back: retarget the walk to where you left it
+      if (endless.on && driftKeys.has(group + '.' + key)){
+        endless.targets[group + '.' + key] = state[group][key];
+      }
+    });
+    inp.addEventListener('change', () => {
+      if (mode === 'rebuild') rebuildStems();
+      else if (mode === 'room') swapRoom();
+    });
+    const sync = () => { inp.value = state[group][key]; val.textContent = fmt(state[group][key]); };
+    div._sync = sync;
+    if (driftKeys.has(group + '.' + key)) driftEls[group + '.' + key] = { sync };
+    $(grid).appendChild(div);
+  }
+}
+function syncSliders(){
+  document.querySelectorAll('.ctl').forEach(c => { if (c._sync) c._sync(); });
+}
+function applyAllLive(){
+  if (!LN) return;
+  for (const [, , group, key, , , , , , mode] of SLIDERS){
+    if (mode === 'live') applyLive(group, key);
+  }
+  swapRoom();
+}
+
+// choosing a preset from anywhere: apply, resync every surface, rebuild
+function selectPreset(name){
+  applyPreset(name);
+  syncSliders();
+  markPreset();
+  applyAllLive();     // damage side lands instantly
+  rebuildStems();     // composition side follows in ~a second
+}
+
+function buildPresets(){
+  for (const name of Object.keys(PRESETS)){
+    const b = document.createElement('button');
+    b.textContent = name;
+    b.dataset.name = name;
+    b.addEventListener('click', () => selectPreset(name));
+    $('presets').appendChild(b);
+  }
+  markPreset();
+}
+
+// hero tiles: the six Luna favorites + a WILD tile that rerolls a fresh generation
+const TILES = [
+  ['SHRINE', 'warm and floating'],
+  ['DEEPS',  'low and murky'],
+  ['COSMIC', 'vast and glassy'],
+  ['VOID',   'near-still, weighty'],
+  ['TIDES',  'a warm sea, breathing'],
+  ['AURORA', 'high, cold, clear']
+];
+function buildTiles(){
+  const box = $('tiles');
+  for (const [name, desc] of TILES){
+    const t = document.createElement('button');
+    t.className = 'tile'; t.dataset.name = name;
+    t.innerHTML = '<span class="tn">' + name + '</span><span class="td">' + desc + '</span>';
+    t.addEventListener('click', () => {
+      pendingAutoStart = true;   // begin playing once the new stems are ready
+      selectPreset(name);
+    });
+    box.appendChild(t);
+  }
+  const s = document.createElement('button');
+  s.className = 'tile surprise'; s.dataset.name = 'WILD';
+  s.innerHTML = '<span class="tn">WILD</span><span class="td">a different generation each time</span>';
+  s.addEventListener('click', () => {
+    pendingAutoStart = true;
+    randomize();
+  });
+  box.appendChild(s);
+}
+
+function markPreset(){
+  document.querySelectorAll('#presets button').forEach(b => {
+    b.classList.toggle('active', b.dataset.name === state.preset);
+  });
+  document.querySelectorAll('#tiles .tile').forEach(t => {
+    t.classList.toggle('active', t.dataset.name === state.preset);
+  });
+  const pn = $('presetnote');
+  if (pn) pn.innerHTML = chordSet().note;
+}
+
+// ---------- ENDLESS: slow drift + preloaded recompose ----------
+let wantEndless = true;       // Luna's build: evolving is on by default; play resumes it
+let pendingAutoStart = false; // a tile/preset tap wants playback to begin after the rebuild
+const endless = {
+  on: false,
+  drift: 0.35,       // gentle default
+  recomp: 0.25,      // slow default: leans toward ~16 min between big changes
+  targets: {},       // group.key -> target value the live params are walking toward
+  tickTimer: null,
+  recompTimer: null,
+  preloading: false,
+  nextRecompAt: 0,   // wall-clock ms for status readout
+  lastTick: 0
+};
+
+// which live params are allowed to drift, with the interior bounds the walk stays inside
+// (kept clear of the ugliest extremes so it can't wander somewhere unpleasant and park)
+const DRIFT_PARAMS = [
+  ['degrade','crush',   0.08, 0.42],
+  ['degrade','wow',     0.25, 0.75],
+  ['degrade','flutter', 0.10, 0.55],
+  ['degrade','lowpass', 1600, 5600],
+  ['degrade','crackle', 0.10, 0.55],
+  ['degrade','breathe', 0.12, 0.55],
+  ['degrade','breatheRate', 0.03, 0.14],
+  ['mix','bass',        0.10, 0.85],
+  ['mix','air',         0.12, 0.60],
+  ['space','wet',       0.28, 0.70]
+];
+// haunt deliberately excluded from drift; size/dark excluded (they need a room swap)
+
+function driftLabel(v){
+  return v < 0.2 ? 'near still' : v < 0.45 ? 'gentle' : v < 0.7 ? 'wandering' : v < 0.9 ? 'restless' : 'churning';
+}
+function recompLabel(v){
+  if (v <= 0.001) return 'never';
+  return '~' + Math.round(recompInterval(v) / 60000) + ' min';
+}
+// recomp slider -> mean interval in ms (0.02 -> ~20min ... 1.0 -> ~3min), 0 -> Infinity
+function recompInterval(v){
+  if (v <= 0.001) return Infinity;
+  const maxMin = 20, minMin = 3;
+  return (maxMin + (minMin - maxMin) * v) * 60000;
+}
+
+function reflectEndless(){
+  const b = $('endless');
+  if (!b) return;
+  b.classList.toggle('on', endless.on);
+  b.innerHTML = endless.on ? 'EVOLVING \u25C9' : 'PAUSED \u25CB';
+}
+
+function startEndless(){
+  if (endless.on) return;
+  endless.on = true;
+  endless.targets = {};
+  for (const [g, k] of DRIFT_PARAMS) endless.targets[g + '.' + k] = state[g][k];
+  pickDriftTargets();
+  endless.lastTick = performance.now();
+  clearInterval(endless.tickTimer);
+  endless.tickTimer = setInterval(endlessTick, 900);
+  scheduleRecompose();
+  reflectEndless();
+  updateEstat();
+}
+
+function stopEndless(){
+  endless.on = false;
+  clearInterval(endless.tickTimer); endless.tickTimer = null;
+  clearTimeout(endless.recompTimer); endless.recompTimer = null;
+  reflectEndless();
+  $('estat').innerHTML = '';
+}
+
+// choose fresh random targets for 1-2 drift params at a time
+function pickDriftTargets(){
+  const n = 1 + (Math.random() < 0.4 ? 1 : 0);
+  const pool = DRIFT_PARAMS.slice();
+  for (let i = 0; i < n && pool.length; i++){
+    const idx = Math.floor(Math.random() * pool.length);
+    const [g, k, lo, hi] = pool.splice(idx, 1)[0];
+    endless.targets[g + '.' + k] = lo + Math.random() * (hi - lo);
+  }
+}
+
+// each tick: move every live param a small fraction toward its target; occasionally repick.
+function endlessTick(){
+  if (!endless.on || !LN) return;
+  endless.lastTick = performance.now();
+  const rate = 0.0016 + endless.drift * 0.010;   // fraction of remaining distance per tick
+  let moved = false;
+  for (const [g, k] of DRIFT_PARAMS){
+    const key = g + '.' + k;
+    const target = endless.targets[key];
+    const cur = state[g][k];
+    const d = target - cur;
+    if (Math.abs(d) < (k === 'lowpass' ? 0.5 : 1e-5)) continue;
+    state[g][k] = cur + d * rate;
+    applyLive(g, k);
+    moved = true;
+  }
+  if (moved) syncDriftSliders();
+  if (Math.random() < 0.02 + endless.drift * 0.05) pickDriftTargets();
+  updateEstat();
+}
+
+function syncDriftSliders(){
+  for (const [g, k] of DRIFT_PARAMS){
+    const el = driftEls[g + '.' + k];
+    if (el) el.sync();
+  }
+}
+
+// ----- preloaded recompose -----
+function scheduleRecompose(){
+  clearTimeout(endless.recompTimer);
+  const iv = recompInterval(endless.recomp);
+  if (!isFinite(iv)){ endless.nextRecompAt = 0; updateEstat(); return; }
+  const jittered = iv * (0.75 + Math.random() * 0.5);   // +/-25%
+  endless.nextRecompAt = Date.now() + jittered;
+  endless.recompTimer = setTimeout(runRecompose, jittered);
+  updateEstat();
+}
+
+async function runRecompose(){
+  if (!endless.on || endless.preloading){ if (endless.on) scheduleRecompose(); return; }
+  endless.preloading = true;
+  updateEstat('preparing a change...');
+  try {
+    const roll = Math.random();
+    if (roll < 0.6){
+      state.seed = Math.floor(Math.random() * 1000000);
+    } else if (roll < 0.85){
+      const delta = [-5,-3,3,5,7][Math.floor(Math.random()*5)];
+      state.comp.root = Math.max(40, Math.min(64, state.comp.root + delta));
+      state.seed = Math.floor(Math.random() * 1000000);
+    } else {
+      const w = rollChords(Math.random);
+      state.wildChords.mode = w.mode; state.wildChords.chordA = w.chordA; state.wildChords.chordB = w.chordB;
+      state.preset = 'WILD';
+      state.seed = Math.floor(Math.random() * 1000000);
+      markPreset();
+    }
+    $('seed').value = state.seed;
+
+    // render the next composition WITHOUT touching the live graph
+    const score = compose();
+    const rngTex = mulberry32(state.seed ^ 0x9E3779B9);
+    const bedBuf = await renderBedStem(score);
+    const bassBuf = await renderBassStem(score);
+    const crackleBuf = makeCrackle(state.loopLen, state.degrade.crackle, rngTex);
+    const airBuf = makeAir(state.loopLen, rngTex);
+    const nextStems = { bedBuf, bassBuf, crackleBuf, airBuf, score };
+
+    if (!endless.on){ endless.preloading = false; return; }   // toggled off mid-render
+
+    const idle = 1 - activeSlot;
+    const XF = 7;                              // crossfade seconds
+    const boundary = nextLoopBoundary(0.5);    // align to the active loop's wrap
+    spawnSlot(idle, nextStems, 0, boundary);
+    fadeSlot(idle, 1, XF, boundary);
+    fadeSlot(activeSlot, 0, XF, boundary);
+    const outgoing = activeSlot;
+    activeSlot = idle;
+    stems = nextStems;                          // canvas + export now reflect the new comp
+    const retireMs = (boundary - liveCtx.currentTime + XF + 0.3) * 1000;
+    setTimeout(() => { stopSlot(outgoing); drawStems(); }, Math.max(0, retireMs));
+    setStat('seed <b>' + state.seed + '</b> \u00B7 ' + state.preset + ' \u00B7 ' + state.loopLen +
+            ' s \u00B7 ' + score.segs.length + ' segments \u00B7 ' + score.bells.length +
+            ' bells \u00B7 <b>endless</b>');
+  } catch (e){
+    setStat('recompose failed: ' + e.message);
+  }
+  endless.preloading = false;
+  scheduleRecompose();
+}
+
+function updateEstat(msg){
+  if (!endless.on){ $('estat').innerHTML = ''; return; }
+  if (msg){ $('estat').innerHTML = '<b>' + msg + '</b>'; return; }
+  if (endless.nextRecompAt){
+    const secs = Math.max(0, Math.round((endless.nextRecompAt - Date.now()) / 1000));
+    const m = Math.floor(secs / 60), s = secs % 60;
+    $('estat').innerHTML = 'next change in <b>' + m + ':' + String(s).padStart(2,'0') + '</b>';
+  } else {
+    $('estat').innerHTML = '<b>drift only</b>';
+  }
+}
+
+function toggleEndless(){
+  if (endless.on){
+    wantEndless = false;
+    stopEndless();
+  } else {
+    wantEndless = true;
+    if (!playing) startSources();   // turning on evolving starts the music too
+    else startEndless();
+  }
+}
+
+// ---------- import a saved JSON patch ----------
+function importJson(obj){
+  if (!obj || typeof obj !== 'object') throw new Error('not an object');
+  if (typeof obj.seed === 'number') state.seed = Math.max(0, Math.floor(obj.seed));
+  if (typeof obj.loopLen === 'number' && [32,48,64,96].includes(obj.loopLen)) state.loopLen = obj.loopLen;
+  // merge-restore each sub-object: assign known keys only, leave the rest at current defaults
+  for (const grp of ['comp','mix','degrade','space','wildChords']){
+    if (obj[grp] && typeof obj[grp] === 'object') Object.assign(state[grp], obj[grp]);
+  }
+  // preset label: honor it if valid, else infer WILD when custom chords are present
+  if (obj.preset && (PRESETS[obj.preset] || obj.preset === 'WILD')) state.preset = obj.preset;
+  else if (obj.wildChords) state.preset = 'WILD';
+  $('seed').value = state.seed;
+  $('looplen').value = state.loopLen;
+  syncSliders();
+  markPreset();
+  if (endless.on) stopEndless();
+  applyAllLive();
+  rebuildStems();
+  setStat('imported patch \u00B7 seed <b>' + state.seed + '</b> \u00B7 ' + state.preset);
+}
+
+// WILD: new seed, new chord pair, every slider rolled across its declared range
+function randomize(){
+  const rng = Math.random;
+  state.seed = Math.floor(rng() * 1000000);
+  $('seed').value = state.seed;
+  for (const [, , group, key, min, max, step] of SLIDERS){
+    const steps = Math.round((max - min) / step);
+    state[group][key] = parseFloat((min + Math.round(rng() * steps) * step).toFixed(6));
+  }
+  // gentle guardrails so a WILD roll stays lovely-strange, never harsh:
+  state.degrade.haunt = Math.min(state.degrade.haunt, 0.06);   // no ring-mod noise wall
+  state.degrade.lowpass = Math.max(state.degrade.lowpass, 1600); // never fully shut
+  const w = rollChords(rng);
+  state.wildChords.mode = w.mode;
+  state.wildChords.chordA = w.chordA;
+  state.wildChords.chordB = w.chordB;
+  state.preset = 'WILD';
+  syncSliders();
+  markPreset();
+  applyAllLive();     // damage lands on the current stems immediately
+  rebuildStems();     // composition catches up
+}
+
+// ---------- wire up ----------
+buildTiles();
+buildSliders();
+buildPresets();
+
+// both play buttons drive the same toggle
+$('play').addEventListener('click', togglePlay);
+if ($('play2')) $('play2').addEventListener('click', togglePlay);
+
+// tinker disclosure
+$('tinker').addEventListener('click', () => {
+  const d = $('deep');
+  const open = d.classList.toggle('open');
+  $('tinker').innerHTML = open ? 'hide settings \u25B4' : 'drone settings \u25BE';
+  if (open) d.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+$('seed').value = state.seed;
+$('seed').addEventListener('change', () => {
+  state.seed = Math.max(0, Math.floor(parseFloat($('seed').value) || 0));
+  $('seed').value = state.seed;
+  rebuildStems();
+});
+$('dice').addEventListener('click', () => {
+  state.seed = Math.floor(Math.random() * 1000000);
+  $('seed').value = state.seed;
+  rebuildStems();
+});
+$('wild').addEventListener('click', randomize);
+
+// volume: live monitoring only, ramped to avoid zipper noise, never in export or state
+$('vol').addEventListener('input', () => {
+  monitorVol = parseFloat($('vol').value);
+  if (LN) LN.master.gain.setTargetAtTime(monitorVol, liveCtx.currentTime, 0.02);
+});
+
+// import
+$('import').addEventListener('click', () => $('importfile').click());
+$('importfile').addEventListener('change', e => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try { importJson(JSON.parse(reader.result)); }
+    catch (err){ setStat('import failed: ' + err.message); }
+  };
+  reader.readAsText(file);
+  $('importfile').value = '';
+});
+
+// endless: hero button toggles it; sliders live in the tinker panel
+$('endless').addEventListener('click', toggleEndless);
+// sync the tinker sliders to the (Luna-tuned) defaults
+$('drift').value = endless.drift;
+$('recomp').value = endless.recomp;
+$('drift').addEventListener('input', () => {
+  endless.drift = parseFloat($('drift').value);
+  $('driftval').textContent = driftLabel(endless.drift);
+});
+$('recomp').addEventListener('input', () => {
+  endless.recomp = parseFloat($('recomp').value);
+  $('recompval').textContent = recompLabel(endless.recomp);
+});
+$('recomp').addEventListener('change', () => { if (endless.on) scheduleRecompose(); });
+$('driftval').textContent = driftLabel(endless.drift);
+$('recompval').textContent = recompLabel(endless.recomp);
+reflectEndless();
+setInterval(() => { if (endless.on) updateEstat(); }, 1000);
+
+$('looplen').addEventListener('change', () => {
+  state.loopLen = parseInt($('looplen').value, 10);
+  stopSources();
+  rebuildStems();
+});
+$('wav').addEventListener('click', exportWav);
+$('json').addEventListener('click', () => {
+  const box = $('jsonbox');
+  box.value = JSON.stringify(state, null, 2);
+  box.classList.toggle('show');
+  if (box.classList.contains('show')){
+    box.select();
+    try { navigator.clipboard.writeText(box.value); } catch (e){}
+  }
+});
+
+// ---------- iOS media bridge: survive the ringer switch + lock-screen transport ----------
+// Route the whole live graph through a MediaStream into a muted-looking <audio> element.
+// iOS treats a playing media element as real playback, which bypasses the silent switch
+// (with headphones especially) and grants lock-screen controls via MediaSession.
+let mediaEl = null, mediaDest = null;
+function ensureMediaBridge(){
+  if (mediaDest || !liveCtx) return;
+  try {
+    mediaDest = liveCtx.createMediaStreamDestination();
+    LN.master.connect(mediaDest);               // tap after master, alongside destination
+    mediaEl = document.createElement('audio');
+    mediaEl.srcObject = mediaDest.stream;
+    mediaEl.loop = true;
+    mediaEl.play().catch(() => {});
+    if ('mediaSession' in navigator){
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: 'PATINA', artist: 'endless drones', album: 'for Luna'
+      });
+      navigator.mediaSession.setActionHandler('play', () => { if (!playing) togglePlay(); });
+      navigator.mediaSession.setActionHandler('pause', () => { if (playing) togglePlay(); });
+    }
+  } catch (e){ /* bridge is a nicety; ignore if unsupported */ }
+}
+// hook the bridge onto the first successful start
+const _origStart = startSources;
+startSources = function(){
+  _origStart();
+  ensureMediaBridge();
+  if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
+};
+const _origStop = stopSources;
+stopSources = function(){
+  _origStop();
+  if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+};
+
+rebuildStems();   // stems build on load; the big button lights up when ready
+</script>
+</body>
+</html>

@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Studio · Daniel Humphries</title>
+<meta name="description" content="Shaders, generators, games and tools by Daniel Humphries. Made after hours to learn how things work.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&display=swap">
+<style>
+  /* The studio is the after-hours room: the paper is gone and the lights are off.
+     Same two faces as the rest of the site. Two columns of tiles; hover a tile and the
+     thing itself appears in it, live, scaled down. */
+  :root {
+    --bg: #0b0b0c;
+    --plate: #101012;
+    --line: #1c1c1f;
+    --fg: #e3e0d8;
+    --fg-soft: #9a9790;
+    --fg-faint: #5b5952;
+    --display: "Big Shoulders Display", "Arial Narrow", Impact, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+    --gutter: clamp(20px, 6vw, 96px);
+    --pw: 1280;   /* the width previews are rendered at before scaling */
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--mono); font-size: 15px; line-height: 1.6;
+    padding-inline: var(--gutter); -webkit-font-smoothing: antialiased; }
+  ::selection { background: var(--fg); color: var(--bg); }
+  a { color: inherit; }
+
+  .top { display: flex; justify-content: space-between; align-items: baseline; gap: 1.5em; flex-wrap: wrap;
+    padding-block: calc(22px + env(safe-area-inset-top, 0px)) 0; font-size: 14px; }
+  .top .home { text-decoration: none; font-weight: 500; }
+  .top nav { display: flex; gap: 1.5em; flex-wrap: wrap; }
+  .top nav a { text-decoration: none; border-bottom: 1.5px solid transparent; padding-bottom: 1px; color: var(--fg-soft); }
+  .top nav a[aria-current="page"] { border-bottom-color: var(--fg); color: var(--fg); }
+  .top nav a:hover, .top nav a:focus-visible { background: var(--fg); color: var(--bg); outline: none; }
+
+  .title { font-family: var(--display); font-weight: 800; text-transform: uppercase; line-height: .9;
+    font-size: clamp(64px, 11vw, 168px); margin: clamp(40px, 9vh, 110px) 0 .2em; letter-spacing: .02em; }
+  .lede { max-width: 62ch; font-size: 16px; margin: 0; }
+  .aside { max-width: 62ch; font-size: 14px; margin: 1em 0 0; color: var(--fg-soft); }
+
+  /* Groups and the two-column grid. */
+  .cat { margin-top: clamp(48px, 9vh, 110px); }
+  .group { margin-bottom: clamp(48px, 8vh, 96px); }
+  .group > h2 { font: 400 13px var(--mono); color: var(--fg-faint); margin: 0 0 1.2em; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(20px, 3vw, 44px); }
+
+  /* A tile: preview area on top, caption strip below. The whole tile is the link. */
+  .tile { position: relative; display: block; text-decoration: none; color: inherit; }
+  .tile .pv { position: relative; aspect-ratio: 16 / 9; background: var(--plate); overflow: hidden; }
+  .tile .pv::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 0 0 1px var(--line); pointer-events: none; }
+  .tile .pv .note { position: absolute; left: 16px; bottom: 12px; font-size: 12px; color: var(--fg-faint); transition: opacity .3s; }
+  .tile .pv iframe { position: absolute; left: 0; top: 0; width: calc(var(--pw) * 1px); height: calc(var(--pw) * 9 / 16 * 1px);
+    border: 0; transform-origin: 0 0; transform: scale(var(--s, .4)); pointer-events: none; opacity: 0; transition: opacity .35s; background: var(--bg); }
+  .tile.live .pv iframe { opacity: 1; }
+  .tile.live .pv .note { opacity: 0; }
+  .tile .cap { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 1.5rem; align-items: baseline; padding: .8em 0 0; }
+  .tile .name { font-family: var(--display); font-weight: 800; text-transform: uppercase; letter-spacing: .03em;
+    font-size: clamp(30px, 3.2vw, 44px); line-height: .95; grid-column: 1; }
+  .tile .how { font-size: 12px; color: var(--fg-faint); grid-column: 2; white-space: nowrap; }
+  .tile .what { grid-column: 1 / -1; color: var(--fg-soft); font-size: 14px; margin: .25em 0 0; max-width: 56ch; }
+  .tile[href]:hover .name, .tile[href]:focus-visible .name { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 6px; }
+  .tile[href]:focus-visible { outline: 1px solid var(--fg-soft); outline-offset: 8px; }
+  .tile.soon .name { color: var(--fg-soft); }
+  .tile.soon .pv { background: repeating-linear-gradient(135deg, var(--plate) 0 14px, var(--bg) 14px 16px); }
+
+  .close { margin: clamp(30px, 6vh, 60px) 0 calc(48px + env(safe-area-inset-bottom, 0px)); max-width: 62ch; color: var(--fg-soft); }
+  .close a { text-decoration: none; border-bottom: 1.5px solid var(--fg); color: var(--fg); }
+  .close a:hover { background: var(--fg); color: var(--bg); }
+
+  @media (max-width: 700px) {
+    .grid { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <a class="home" href="index.html">Daniel Humphries</a>
+  <nav aria-label="Sections">
+    <a href="coffee.html">Coffee</a>
+    <a href="coffee-ai.html">Coffee × AI</a>
+    <a href="studio.html" aria-current="page">Studio</a>
+  </nav>
+</header>
+
+<main>
+  <h1 class="title">Studio</h1>
+  <p class="lede">Shaders, generators, games and tools, made after hours to learn how things work. Most of them are single HTML files you can open and use. Rest on one and it runs.</p>
+  <p class="aside">Some are studies of things I admired online, rebuilt until I understood them. That's how I learn, and I'd rather say so.</p>
+
+  <div class="cat">
+
+    <section class="group" aria-labelledby="g-light">
+      <h2 id="g-light">Light and material</h2>
+      <div class="grid">
+        <a class="tile" id="carbon-foil" href="studio/carbon-foil.html" data-preview="studio/carbon-foil.html?demo=1&dpr=1">
+          <div class="pv"><span class="note">Rest here to run it</span></div>
+          <div class="cap"><span class="name">Carbon foil</span><span class="how">WebGL2 · one file</span>
+            <p class="what">Dark objects that tilt toward the pointer and catch a grazing light. Lettering, a glass disc, a framed print; three finishes.</p></div>
+        </a>
+        <a class="tile" href="studio/radiance.html" data-preview="studio/radiance.html">
+          <div class="pv"><span class="note">Rest here to run it</span></div>
+          <div class="cap"><span class="name">Radiance</span><span class="how">Canvas · one file</span>
+            <p class="what">A 2D radiance cascades playground: global illumination for flat scenes, light bouncing between shapes you draw.</p></div>
+        </a>
+        <a class="tile" href="studio/nazomer.html" data-preview="studio/nazomer.html">
+          <div class="pv"><span class="note">Rest here to run it</span></div>
+          <div class="cap"><span class="name">Nazomer</span><span class="how">Canvas · one file</span>
+            <p class="what">A late-summer light engine. Photos into panelled posters, with water reflections and the colour of the year's last warm week.</p></div>
+        </a>
+        <a class="tile" href="studio/chaos-field.html" data-preview="studio/chaos-field.html">
+          <div class="pv"><span class="note">Rest here to run it</span></div>
+          <div class="cap"><span class="name">Chaos field</span><span class="how">WebGL · one file</span>
+            <p class="what">The clarity shader from Dark Pixel on its own: the world lies to you in proportion to how hard it's being searched.</p></div>
+        </a>
+        <a class="tile" href="studio/mandala.html" data-preview="studio/mandala.html">
+          <div class="pv"><span class="note">Rest here to run it</span></div>
+          <div class="cap"><span class="name">Mandala</span><span class="how">GLSL · one file</span>
+            <p class="what">An interactive wallpaper from the shader lab, where tweet-sized fragment shaders get taken apart to see how they work.</p></div>
+        </a>
+        <a class="tile" href="studio/pixel-vortex.html" data-preview="studio/pixel-vortex.html">
+          <div class="pv"><span class="note">Rest here to run it</span></div>
+          <div class="cap"><span class="name">Pixel vortex</span><span class="how">GLSL · one file</span>
+            <p class="what">Another shader-lab wallpaper, pixelated and spinning.</p></div>
+        </a>
+        <a class="tile" href="studio/cyclone.html" data-preview="studio/cyclone.html">
+          <div class="pv"><span class="note">Rest here to run it</span></div>
+          <div class="cap"><span class="name">Cyclone</span><span class="how">GLSL · one file</span>
+            <p class="what">A tweet-sized shader from fragcoord.xyz, unpacked to see how it works.</p></div>
+        </a>
+      </div>
+    </section>
+
+    <section class="group" aria-labelledby="g-posters">
+      <h2 id="g-posters">Poster tools</h2>
+      <div class="grid">
+        <a class="tile" href="studio/swelter.html" data-preview="studio/swelter.html">
+          <div class="pv"><span class="note">Rest here to run it</span></div>
+          <div class="cap"><span class="name">Swelter</span><span class="how">Canvas · one file</span>
+            <p class="what">Tropic pattern tool: street photographs pushed through a four-ink print engine.</p></div>
+        </a>
+        <a class="tile" href="studio/headliner.html" data-preview="studio/headliner.html">
+          <div class="pv"><span class="note">Rest here to run it</span></div>
+          <div class="cap"><span class="name">Headliner</span><span class="how">Canvas · one file</span>
+            <p class="what">A character bill: names, billing order, the typography of a film poster's bottom third.</p></div>
+        </a>
+        <a class="tile" href="studio/glam-sheet.html" data-preview="studio/glam-sheet.html">
+          <div class="pv"><span class="note">Rest here to run it</span></div>
+          <div class="cap"><span class="name">Glam sheet</span><span class="how">Canvas · one file</span>
+            <p class="what">Character poster tool: profile card, backdrop, ghost image.</p></div>
+        </a>
+        <a class="tile" href="studio/starstruck.html" data-preview="studio/starstruck.html">
+          <div class="pv"><span class="note">Rest here to run it</span></div>
+          <div class="cap"><span class="name">Starstruck</span><span class="how">Canvas · one file</span>
+            <p class="what">Superstar poster tool, sticker-bombed.</p></div>
+        </a>
+        <a class="tile" href="studio/herbarium.html" data-preview="studio/herbarium.html">
+          <div class="pv"><span class="note">Rest here to run it</span></div>
+          <div class="cap"><span class="name">Herbarium</span><span class="how">Canvas · one file</span>
+            <p class="what">Field plates: a photograph engraved into a botanical specimen sheet.</p></div>
+        </a>
+        <a class="tile" href="studio/stockroom.html" data-preview="studio/stockroom.html">
+          <div class="pv"><span class="note">Rest here to run it</span></div>
+          <div class="cap"><span class="name">Stockroom</span><span class="how">Canvas · one file</span>
+            <p class="what">Flash-sale ad tool. Product, price, shout.</p></div>
+        </a>
+        <a class="tile" href="studio/tech-collage.html" data-preview="studio/tech-collage.html">
+          <div class="pv"><span class="note">Rest here to run it</span></div>
+          <div class="cap"><span class="name">Tech collage</span><span class="how">Canvas · one file</span>
+            <p class="what">Pattern tool: a technical-diagram overlay through a halftone engine.</p></div>
+        </a>
+        <a class="tile" href="studio/cmyk-seeds.html" data-preview="studio/cmyk-seeds.html">
+          <div class="pv"><span class="note">Rest here to run it</span></div>
+          <div class="cap"><span class="name">CMYK seeds</span><span class="how">Canvas · one file</span>
+            <p class="what">Seeded four-ink paint smears, a background study for this site's first draft.</p></div>
+        </a>
+        <a class="tile" href="studio/paint-studies.html" data-preview="studio/paint-studies.html">
+          <div class="pv"><span class="note">Rest here to run it</span></div>
+          <div class="cap"><span class="name">Paint studies</span><span class="how">Canvas · one file</span>
+            <p class="what">Blurred paint fields, another background study.</p></div>
+        </a>
+      </div>
+    </section>
+
+    <section class="group" aria-labelledby="g-sound">
+      <h2 id="g-sound">Sound</h2>
+      <div class="grid">
+        <a class="tile" href="studio/overworld.html" data-preview="studio/overworld.html" data-audio="studio/overworld-preview.mp3">
+          <div class="pv"><span class="note">Rest here to hear it</span></div>
+          <div class="cap"><span class="name">Overworld</span><span class="how">Web Audio · one file</span>
+            <p class="what">A chiptune composer and renderer for overworld themes. Writes the loop, plays it, exports the wave.</p></div>
+        </a>
+        <a class="tile" href="studio/patina-luna.html" data-preview="studio/patina-luna.html">
+          <div class="pv"><span class="note">Rest here to run it</span></div>
+          <div class="cap"><span class="name">Patina</span><span class="how">Web Audio · one file</span>
+            <p class="what">A degraded ambient loop foundry. Seeded chords, worn edges, endless recomposition.</p></div>
+        </a>
+        <a class="tile" href="studio/patina-temple.html" data-preview="studio/patina-temple.html">
+          <div class="pv"><span class="note">Rest here to run it</span></div>
+          <div class="cap"><span class="name">Patina Temple</span><span class="how">Web Audio · one file</span>
+            <p class="what">The same foundry, tuned for temple drones.</p></div>
+        </a>
+      </div>
+    </section>
+
+    <section class="group" aria-labelledby="g-worlds">
+      <h2 id="g-worlds">Worlds and games</h2>
+      <div class="grid">
+        <a class="tile" href="studio/planet-forge.html" data-preview="studio/planet-forge.html">
+          <div class="pv"><span class="note">Rest here to run it</span></div>
+          <div class="cap"><span class="name">Planet Forge</span><span class="how">Canvas · one file</span>
+            <p class="what">Procedural worlds, stage one: tectonics and elevation.</p></div>
+        </a>
+        <div class="tile soon">
+          <div class="pv"><span class="note">Demo to come</span></div>
+          <div class="cap"><span class="name">Dark Pixel</span><span class="how">Phaser · Electron</span>
+            <p class="what">A top-down pixel-art action RPG, built as a gift for Eric. A sword whose one power is cutting through confusion.</p></div>
+        </div>
+        <div class="tile soon">
+          <div class="pv"><span class="note">Demo to come</span></div>
+          <div class="cap"><span class="name">Dungeon generation</span><span class="how">JS · Python</span>
+            <p class="what">Dice-first dungeon generation and stocking for Adventurer Conqueror King, rendered as a hand-drawn map with a player view.</p></div>
+        </div>
+        <div class="tile soon">
+          <div class="pv"><span class="note">Demo to come</span></div>
+          <div class="cap"><span class="name">ACKS II app</span><span class="how">Python · desktop</span>
+            <p class="what">A referee's engine for a tabletop campaign: world state, weather, mass combat, the rules as data.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="group" aria-labelledby="g-voice">
+      <h2 id="g-voice">Voice and people</h2>
+      <div class="grid">
+        <a class="tile" href="https://nucleard.github.io/roastery-lookbook" target="_blank" rel="noopener" data-preview="https://nucleard.github.io/roastery-lookbook" data-pw="430">
+          <div class="pv"><span class="note">Rest here to run it</span></div>
+          <div class="cap"><span class="name">Lucha Rosa</span><span class="how">HTML · live</span>
+            <p class="what">A phone-sized lookbook for a friend's roastery idea: twenty-one cards, names read out loud.</p></div>
+        </a>
+        <div class="tile soon">
+          <div class="pv"><span class="note">Demo to come</span></div>
+          <div class="cap"><span class="name">Claude voice app</span><span class="how">Android · Kotlin</span>
+            <p class="what">Hands-free conversations with Claude while cycling. One tap, talk, say the word, listen.</p></div>
+        </div>
+        <div class="tile soon">
+          <div class="pv"><span class="note">Demo to come</span></div>
+          <div class="cap"><span class="name">Genesis voicebot</span><span class="how">Python · local models</span>
+            <p class="what">A local voice assistant on a home machine, no cloud, set up so friends could run their own.</p></div>
+        </div>
+        <div class="tile soon">
+          <div class="pv"><span class="note">Demo to come</span></div>
+          <div class="cap"><span class="name">Movie night</span><span class="how">Pipeline · concept</span>
+            <p class="what">Watch an episode with an AI that has actually seen it: the whole thing banked frame by frame beforehand, then talked through.</p></div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <p class="close">If you want something built that looks or sounds like nothing else, write to <a href="mailto:dmhnuclear@gmail.com">dmhnuclear@gmail.com</a>.</p>
+</main>
+
+<script>
+(() => {
+  // Previews: the real page in an iframe, loaded only while the pointer rests on the tile,
+  // rendered at a fixed width and scaled to fit. Unloaded again shortly after the pointer leaves,
+  // so at most one or two of the heavier shader pages run at a time.
+  const tiles = [...document.querySelectorAll('.tile[data-preview]')];
+  const fine = matchMedia('(hover: hover) and (pointer: fine)').matches;
+  const fit = () => {
+    for (const t of tiles) {
+      const pw = Number(t.dataset.pw || 1280);
+      t.style.setProperty('--pw', pw);
+      t.style.setProperty('--s', (t.querySelector('.pv').clientWidth / pw).toFixed(4));
+    }
+  };
+  fit(); addEventListener('resize', fit);
+
+  // Audio previews can only start after the visitor has clicked or tapped somewhere on the page.
+  let unlocked = false;
+  addEventListener('pointerdown', () => { unlocked = true; }, { once: true, capture: true });
+  let audio = null;
+
+  for (const t of tiles) {
+    const pv = t.querySelector('.pv');
+    let frame = null, inT = 0, outT = 0;
+    const load = () => {
+      if (frame) return;
+      frame = document.createElement('iframe');
+      frame.src = t.dataset.preview; frame.tabIndex = -1; frame.setAttribute('aria-hidden', 'true');
+      frame.addEventListener('load', () => t.classList.add('live'));
+      pv.appendChild(frame);
+      if (t.dataset.audio && unlocked) {
+        if (audio) { audio.pause(); }
+        audio = new Audio(t.dataset.audio); audio.volume = 0.7; audio.play().catch(() => {});
+      }
+    };
+    const unload = () => {
+      t.classList.remove('live');
+      if (frame) { frame.remove(); frame = null; }
+      if (t.dataset.audio && audio) { audio.pause(); audio = null; }
+    };
+    if (!fine) continue;   // touch: tap opens, no hover previews
+    t.addEventListener('pointerenter', () => { clearTimeout(outT); inT = setTimeout(load, 220); });
+    t.addEventListener('pointerleave', () => { clearTimeout(inT); outT = setTimeout(unload, 500); });
+    t.addEventListener('focus', () => { clearTimeout(outT); load(); });
+    t.addEventListener('blur', () => { outT = setTimeout(unload, 300); });
+  }
+})();
+</script>
+</body>
+</html>
